@@ -8,7 +8,7 @@ function Sidemenu() {
   const [openWorkflow, setOpenWorkflow] = useState(false)
 
   return (
-    <div className="w-64 h-screen bg-slate-900 text-white flex flex-col overflow-y-auto">
+    <div className="w-64 h-screen bg-slate-900 text-white flex flex-col overflow-y-auto sidemenu-scroll">
       {/* Header */}
       <div className="p-6 border-b border-slate-700">
         <div className="flex items-center gap-3">
