@@ -34,9 +34,9 @@ export default function RootLayout({
       >
         <div className="flex h-screen">
           <Sidemenu />
-          <div className="flex-1 flex flex-col relative">
+          <div className="flex-1 relative">
             <Topmenu />
-            <main className="flex-1 overflow-hidden pt-20">
+            <main className="overflow-hidden">
               {children}
             </main>
           </div>

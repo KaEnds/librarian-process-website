@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Search, Bell, User } from 'lucide-react'
 
 function Topmenu() {
-  const [language, setLanguage] = useState('en')
+  const [language, setLanguage] = useState('th')
   const [openLanguageMenu, setOpenLanguageMenu] = useState(false)
 
   const languages = [
