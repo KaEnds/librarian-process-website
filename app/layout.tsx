@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Montserrat, IBM_Plex_Sans_Thai } from "next/font/google";
 import "./globals.css";
+import Sidemenu from "@/components/Sidemenu";
+import Topmenu from "@/components/Topmenu";
 
 const montserrat = Montserrat({
   variable: "--font-montserrat",
@@ -30,7 +32,15 @@ export default function RootLayout({
       <body
         className={`${montserrat.variable} ${ibmPlexSans.variable} antialiased`}
       >
-        {children}
+        <div className="flex h-screen">
+          <Sidemenu />
+          <div className="flex-1 flex flex-col relative">
+            <Topmenu />
+            <main className="flex-1 overflow-hidden pt-20">
+              {children}
+            </main>
+          </div>
+        </div>
       </body>
     </html>
   );
