@@ -3,11 +3,13 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormEvent, useState } from "react";
+import { useFormStatus } from "react-dom";
 import logo from "@/images/KMUTT_logo.jpg";
 
 export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const status = useFormStatus();
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -71,6 +73,7 @@ export default function Login() {
             <Button
               type="submit"
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-6 rounded-full mt-6"
+              disabled={status.pending}
             >
               Login
             </Button>

@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { FormEvent, useState } from "react";
 import logo from "@/images/KMUTT_logo.jpg";
 import Link from "next/link";
+import { createUser } from "@/actions/auth";
 
 export default function Register() {
   const [username, setUsername] = useState("");
@@ -12,10 +13,10 @@ export default function Register() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // Handle registration logic here
-    console.log("Register attempt:", { username, email, password, confirmPassword });
+    createUser(username, email, password, confirmPassword);
+    
   };
 
   return (
