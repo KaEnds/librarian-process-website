@@ -1,9 +1,12 @@
-import { columns, Request } from "./columns"
+"use client"
+
+import { useState } from "react"
+import { getColumns, Request } from "./columns"
 import { DataTable } from "./data-table"
 import { Button } from "@/components/ui/button"
-import { Filter, Download, Plus, Send } from "lucide-react"
+import { Filter, Download, Plus, Send, X } from "lucide-react"
 
-async function getData(): Promise<Request[]> {
+function getData(): Request[] {
   // Fetch data from your API here.
   return [
     {
@@ -149,8 +152,10 @@ async function getData(): Promise<Request[]> {
   ]
 }
 
-export default async function RequestsPage() {
-  const data = await getData()
+export default function RequestsPage() {
+  const data = getData()
+  const [isSelectionMode, setIsSelectionMode] = useState(false)
+  const columns = getColumns(isSelectionMode)
 
   return (
     <div className="w-full p-8 bg-gray-50 h-[calc(100vh-80px)]">
@@ -163,7 +168,7 @@ export default async function RequestsPage() {
       </div>
 
       {/* Title, Stats and Action Buttons */}
-      <div className="border border-gray-200 bg-white rounded-lg p-4 flex items-center justify-between">
+      <div className="border border-gray-200 bg-white rounded-lg p-4 flex items-center justify-between mb-6">
         <div>
           <div className="flex items-baseline gap-2 mb-1">
             <h1 className="text-xl font-bold">คำร้องขอจัดซื้อ</h1>
@@ -183,10 +188,35 @@ export default async function RequestsPage() {
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-            <Plus className="w-4 h-4 mr-2" />
-            เลือกคำร้องขอเอง
-          </Button>
+          {!isSelectionMode ? (
+            <Button 
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={() => setIsSelectionMode(true)}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              เลือกคำร้องขอเอง
+            </Button>
+          ) : (
+            <>
+              <Button 
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={() => {
+                  console.log("บันทึกการเลือก")
+                  setIsSelectionMode(false)
+                }}
+              >
+                บันทึก
+              </Button>
+              <Button 
+                variant="outline" 
+                className="bg-white border-red-300 text-red-600 hover:bg-red-50"
+                onClick={() => setIsSelectionMode(false)}
+              >
+                <X className="w-4 h-4 mr-2" />
+                ยกเลิก
+              </Button>
+            </>
+          )}
           <Button className="bg-blue-600 hover:bg-blue-700 text-white">
             <Send className="w-4 h-4 mr-2" />
             ส่งคำร้องขอไปยังขั้นตอนถัดไป
@@ -199,3 +229,4 @@ export default async function RequestsPage() {
     </div>
   )
 }
+
