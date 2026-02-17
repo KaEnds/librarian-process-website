@@ -1,27 +1,85 @@
 "use client"
 
 import { ColumnDef } from "@tanstack/react-table"
+import { ArrowDown } from "lucide-react"
 
-// This type is used to define the shape of our data.
-// You can use a Zod schema here if you want.
 export type Payment = {
-  id: string
-  amount: number
-  status: "pending" | "processing" | "success" | "failed"
-  email: string
+  id: number
+  title: string
+  author: string
+  cuBook: string
+  seEdBook: string
+  vendor3: string
+  vendor4: string
+  vendor5: string
 }
 
 export const columns: ColumnDef<Payment>[] = [
   {
-    accessorKey: "status",
-    header: "Status",
+    accessorKey: "id",
+    header: "No.",
   },
   {
-    accessorKey: "email",
-    header: "Email",
+    accessorKey: "title",
+    header: () => (
+      <div className="flex items-center gap-1">
+        <span>Title</span>
+        <ArrowDown className="h-3.5 w-3.5 text-slate-500" />
+      </div>
+    ),
   },
   {
-    accessorKey: "amount",
-    header: "Amount",
+    accessorKey: "author",
+    header: () => (
+      <div className="flex items-center gap-1">
+        <span>Author</span>
+        <ArrowDown className="h-3.5 w-3.5 text-slate-500" />
+      </div>
+    ),
+  },
+  {
+    accessorKey: "cuBook",
+    header: () => (
+      <div className="flex items-center gap-1">
+        <span>CU Book</span>
+        <ArrowDown className="h-3.5 w-3.5 text-slate-500" />
+      </div>
+    ),
+  },
+  {
+    accessorKey: "seEdBook",
+    header: () => (
+      <div className="flex items-center gap-1">
+        <span>SE-ED Book</span>
+        <ArrowDown className="h-3.5 w-3.5 text-slate-500" />
+      </div>
+    ),
+  },
+  {
+    accessorKey: "vendor3",
+    header: () => (
+      <div className="flex items-center gap-1">
+        <span>ร้านค้า 3</span>
+        <ArrowDown className="h-3.5 w-3.5 text-slate-500" />
+      </div>
+    ),
+  },
+  {
+    accessorKey: "vendor4",
+    header: () => (
+      <div className="flex items-center gap-1">
+        <span>ร้านค้า 4</span>
+        <ArrowDown className="h-3.5 w-3.5 text-slate-500" />
+      </div>
+    ),
+  },
+  {
+    accessorKey: "vendor5",
+    header: () => (
+      <div className="flex items-center gap-1">
+        <span>ร้านค้า 5</span>
+        <ArrowDown className="h-3.5 w-3.5 text-slate-500" />
+      </div>
+    ),
   },
 ]
