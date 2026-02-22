@@ -1,94 +1,87 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { getColumns, Request } from "./columns"
 import { DataTable } from "./data-table"
 import { Button } from "@/components/ui/button"
 import { RequestDetailsPopup } from "@/components/RequestDetailsPopup"
 import { AIDecisionDetailPopup } from "@/components/AIDecisionDetailPopup"
 import { ConfirmRequestPopup } from "@/components/ConfirmRequestPopup"
+import type { ConfirmRequestItem } from "@/components/ConfirmRequestPopup"
+import {
+  ApiRequest,
+  buildConfirmRequestItems,
+  getRequestUpdatedAt,
+  mapApiRequestToRequest,
+  mergeRequests,
+  toTextOrNull,
+} from "@/lib/utils"
 import { Filter, Download, Plus, Send, X } from "lucide-react"
 
-function getData(): Request[] {
-  const buildRequest = (
-    id: number,
-    status: "approved" | "rejected",
-    action: "selected" | "pending"
-  ): Request => ({
-    id,
-    title: "Bold text column",
-    author: "Regular text column",
-    isbn: "Regular text column",
-    publisher: "Regular text column",
-    year: "Regular text column",
-    status,
-    action,
-    details: {
-      title: id === 1 ? "Harry Potter and the deathly hallows" : "Bold text column",
-      author: id === 1 ? "เจ.เค. โรว์ลิง" : "Regular text column",
-      isbn: id === 1 ? "9789749601648" : "Regular text column",
-      year: id === 1 ? "2550" : "Regular text column",
-      publisher: id === 1 ? "กรุงเทพฯ : นานมีบุ๊คส์" : "Regular text column",
-      branch: "KMUTT Library",
-      aiStatus: status,
-      requestReason: "Personal Interest",
-      detailReason: "อยากเอามาอ่านเล่นๆ ยาวๆ",
-      requester: {
-        name: "นายสมชาย สดชื่น",
-        studentId: "65070501001",
-        status: "นักศึกษา",
-        faculty: "วิศวกรรมศาสตร์",
-        major: "วิศวกรรมคอมพิวเตอร์",
-      },
-    },
-    aiSelectionDetail: {
-      status,
-      reason:
-        "หนังสือ Harry Potter ได้รับการคัดเลือกจัดซื้อเนื่องจากเป็นวรรณกรรมเยาวชนที่ได้รับความนิยมทั่วโลก มีเนื้อหาส่งเสริมจินตนาการ ความคิดสร้างสรรค์ และปลูกฝังคุณธรรม เหมาะต่อการศึกษาในด้านภาษา วรรณกรรม และการอ่านเพื่อพัฒนาทักษะของผู้ใช้งานในห้องสมุด",
-      totalScore: 87,
-      criteria: [
-        { id: 1, title: "Bold text column", score: 7 },
-        { id: 2, title: "Bold text column", score: 5 },
-        { id: 3, title: "Bold text column", score: 9 },
-        { id: 4, title: "Bold text column", score: 10 },
-        { id: 5, title: "Bold text column", score: 8 },
-        { id: 6, title: "Bold text column", score: 6 },
-        { id: 7, title: "Bold text column", score: 9 },
-        { id: 8, title: "Bold text column", score: 7 },
-        { id: 9, title: "Bold text column", score: 8 },
-        { id: 10, title: "Bold text column", score: 6 },
-        { id: 11, title: "Bold text column", score: 5 },
-        { id: 12, title: "Bold text column", score: 7 },
-      ],
-    },
-  })
-
-  return [
-    buildRequest(1, "approved", "pending"),
-    buildRequest(2, "approved", "pending"),
-    buildRequest(3, "rejected", "pending"),
-    buildRequest(4, "approved", "pending"),
-    buildRequest(5, "rejected", "pending"),
-    buildRequest(6, "approved", "pending"),
-    buildRequest(7, "approved", "pending"),
-    buildRequest(8, "rejected", "pending"),
-    buildRequest(9, "approved", "pending"),
-    buildRequest(10, "approved", "pending"),
-    buildRequest(11, "rejected", "pending"),
-    buildRequest(12, "approved", "pending"),
-    buildRequest(13, "rejected", "pending"),
-    buildRequest(14, "approved", "pending"),
-  ]
-}
-
 export default function RequestsPage() {
-  const [data, setData] = useState<Request[]>(getData)
+  const [data, setData] = useState<Request[]>([])
   const [isSelectionMode, setIsSelectionMode] = useState(false)
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null)
   const [selectedAIRequest, setSelectedAIRequest] = useState<Request | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [isNextStepPopupOpen, setIsNextStepPopupOpen] = useState(false)
-  const [nextStepRequests, setNextStepRequests] = useState<Request[]>([])
+  const [nextStepRequests, setNextStepRequests] = useState<ConfirmRequestItem[]>([])
+  const latestUpdatedAtRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    let isMounted = true
+
+    const syncRequests = async (incremental: boolean) => {
+      try {
+        const since = incremental ? latestUpdatedAtRef.current : null
+        const query = since ? `?since=${encodeURIComponent(since)}` : ""
+        const response = await fetch(`/api/get-book-requests${query}`)
+        const payload = await response.json()
+        const apiRequests: ApiRequest[] = Array.isArray(payload?.data) ? payload.data : []
+
+        if (!isMounted) {
+          return
+        }
+
+        if (!apiRequests.length) {
+          return
+        }
+
+        const mappedRequests = apiRequests.map(mapApiRequestToRequest)
+
+        setData((previous) => (incremental ? mergeRequests(previous, mappedRequests) : mappedRequests))
+
+        const latestFromBatch = apiRequests.reduce<string | null>((latest, item) => {
+          const updatedAt = toTextOrNull(getRequestUpdatedAt(item))
+
+          if (!updatedAt) {
+            return latest
+          }
+
+          if (!latest) {
+            return updatedAt
+          }
+
+          return new Date(updatedAt).getTime() > new Date(latest).getTime() ? updatedAt : latest
+        }, latestUpdatedAtRef.current)
+
+        latestUpdatedAtRef.current = latestFromBatch
+      } catch (error) {
+        console.error("Error fetching book requests:", error)
+      }
+    }
+
+    syncRequests(false)
+
+    const interval = setInterval(() => {
+      syncRequests(true)
+    }, 3000)
+
+    return () => {
+      isMounted = false
+      clearInterval(interval)
+    }
+  }, [])
 
   const handleSelectionChange = (requestId: number, checked: boolean) => {
     setSelectedIds((prev) => {
@@ -103,7 +96,7 @@ export default function RequestsPage() {
   }
 
   const handleSubmitToNextStep = () => {
-    const selectedRequests = data.filter((item) => item.action === "selected")
+    const selectedRequests: ConfirmRequestItem[] = buildConfirmRequestItems(data)
 
     setNextStepRequests(selectedRequests)
     setIsNextStepPopupOpen(true)

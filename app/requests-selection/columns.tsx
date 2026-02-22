@@ -9,12 +9,12 @@ import { AIDecisionDetailData } from "@/components/AIDecisionDetailPopup"
 
 export type Request = {
   id: number
-  title: string
-  author: string
-  isbn: string
-  publisher: string
-  year: string
-  status: "approved" | "rejected"
+  title: string | null
+  author: string | null
+  isbn: string | null
+  publisher: string | null
+  year: string | null
+  status: "approved" | "rejected" | "pending"
   action: "selected" | "pending"
   details: RequestDetails
   aiSelectionDetail: AIDecisionDetailData
@@ -31,54 +31,56 @@ export const getColumns = (
       accessorKey: "id",
       header: "No.",
       cell: ({ row }) => {
-        return <div className="text-sm">{row.getValue("id")}</div>
+        return <div className="text-sm">{row.index + 1}</div>
       },
     },
     {
       accessorKey: "title",
       header: "Title",
       cell: ({ row }) => {
-        return <div className="font-bold text-sm">{row.getValue("title")}</div>
+        return <div className="font-bold text-sm">{(row.getValue("title") as string | null) ?? "-"}</div>
       },
     },
     {
       accessorKey: "author",
       header: "Author",
       cell: ({ row }) => {
-        return <div className="text-sm text-gray-600">{row.getValue("author")}</div>
+        return <div className="text-sm text-gray-600">{(row.getValue("author") as string | null) ?? "-"}</div>
       },
     },
     {
       accessorKey: "isbn",
       header: "ISBN/ISSN",
       cell: ({ row }) => {
-        return <div className="text-sm text-gray-600">{row.getValue("isbn")}</div>
+        return <div className="text-sm text-gray-600">{(row.getValue("isbn") as string | null) ?? "-"}</div>
       },
     },
     {
       accessorKey: "publisher",
       header: "Publisher",
       cell: ({ row }) => {
-        return <div className="text-sm text-gray-600">{row.getValue("publisher")}</div>
+        return <div className="text-sm text-gray-600">{(row.getValue("publisher") as string | null) ?? "-"}</div>
       },
     },
     {
       accessorKey: "year",
       header: "Year of publish",
       cell: ({ row }) => {
-        return <div className="text-sm text-gray-600">{row.getValue("year")}</div>
+        return <div className="text-sm text-gray-600">{(row.getValue("year") as string | null) ?? "-"}</div>
       },
     },
     {
       accessorKey: "status",
       header: "การคัดโดย AI",
       cell: ({ row }) => {
-        const status = row.getValue("status") as string
+        const status = row.getValue("status") as Request["status"]
         const request = row.original
+        const badgeVariant = status === "approved" ? "approved" : status === "rejected" ? "rejected" : "pending"
+        const badgeText = status === "approved" ? "Approved" : status === "rejected" ? "Rejected" : "Pending"
         return (
           <button type="button" onClick={() => onOpenAISelectionDetail?.(request)}>
-            <Badge variant={status === "approved" ? "approved" : "rejected"}>
-              {status === "approved" ? "Approved" : "Rejected"}
+            <Badge variant={badgeVariant}>
+              {badgeText}
             </Badge>
           </button>
         )

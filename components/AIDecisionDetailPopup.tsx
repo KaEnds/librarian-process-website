@@ -10,9 +10,9 @@ export type AIDecisionCriterion = {
 }
 
 export type AIDecisionDetailData = {
-  status: "approved" | "rejected"
-  reason: string
-  totalScore: number
+  status: "approved" | "rejected" | "pending"
+  reason: string | null
+  totalScore: number | null
   criteria: AIDecisionCriterion[]
 }
 
@@ -36,8 +36,8 @@ export function AIDecisionDetailPopup({ open, data, onClose }: AIDecisionDetailP
         <div className="flex items-center justify-between border-b border-border bg-background px-5 py-3">
           <div className="flex items-center gap-3">
             <h2 className="text-base font-semibold">เหตุผลการตัดสินใจของ AI</h2>
-            <Badge variant={data.status === "approved" ? "approved" : "rejected"}>
-              {data.status === "approved" ? "Approved" : "Rejected"}
+            <Badge variant={data.status === "approved" ? "approved" : data.status === "rejected" ? "rejected" : "pending"}>
+              {data.status === "approved" ? "Approved" : data.status === "rejected" ? "Rejected" : "Pending"}
             </Badge>
           </div>
           <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
@@ -48,12 +48,12 @@ export function AIDecisionDetailPopup({ open, data, onClose }: AIDecisionDetailP
         <div className="max-h-[78vh] overflow-y-auto bg-muted/30">
           <div className="space-y-4 p-4">
             <div className="rounded-md border border-border bg-background p-3">
-              <p className="text-sm leading-7">{data.reason}</p>
+              <p className="text-sm leading-7">{data.reason ?? "-"}</p>
             </div>
 
             <div className="overflow-hidden rounded-md border border-border bg-background">
               <div className="border-b border-border bg-muted/30 px-4 py-3">
-                <h3 className="text-base font-semibold">คะแนนคุณเกณฑ์การคัดเลือกจาก AI ( รวม {data.totalScore} คะแนน )</h3>
+                <h3 className="text-base font-semibold">คะแนนคุณเกณฑ์การคัดเลือกจาก AI ( รวม {data.totalScore ?? 0} คะแนน )</h3>
               </div>
 
               <div className="max-h-[360px] overflow-y-auto">

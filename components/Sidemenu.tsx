@@ -1,11 +1,15 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { ChevronDown, Home, Grid2X2, FileText, Users, Bell, Settings, HelpCircle, Book } from 'lucide-react'
 import librairy_logo from '../images/librairy_logo.png'
 
 function Sidemenu() {
   const [openWorkflow, setOpenWorkflow] = useState(false)
+  const pathname = usePathname()
+  const isActive = (path: string) => pathname === path
 
   return (
     <div className="w-64 h-screen bg-slate-900 text-white flex flex-col overflow-y-auto sidemenu-scroll">
@@ -25,10 +29,13 @@ function Sidemenu() {
 
           {/* Dashboard */}
           <div className="mb-3">
-            <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-200 hover:bg-slate-800 transition">
+            <Link
+              href="/"
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition ${isActive("/") ? "bg-slate-800 text-white" : "text-slate-200 hover:bg-slate-800"}`}
+            >
               <Home className="w-5 h-5" />
               Dashboard
-            </button>
+            </Link>
           </div>
 
           {/* จัดการ Workflow */}
@@ -48,15 +55,24 @@ function Sidemenu() {
             {/* Submenu */}
             {openWorkflow && (
               <div className="ml-8 mt-2 space-y-2">
-                <button className="w-full text-left px-3 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-800 rounded transition">
+                <Link
+                  href="/requests-selection"
+                  className={`block w-full text-left px-3 py-2 text-xs rounded transition ${isActive("/requests-selection") ? "bg-slate-800 text-white" : "text-slate-300 hover:text-white hover:bg-slate-800"}`}
+                >
                   คัดเลือกคำร้อง
-                </button>
-                <button className="w-full text-left px-3 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-800 rounded transition">
+                </Link>
+                <Link
+                  href="/quotation-request"
+                  className={`block w-full text-left px-3 py-2 text-xs rounded transition ${isActive("/quotation-request") ? "bg-slate-800 text-white" : "text-slate-300 hover:text-white hover:bg-slate-800"}`}
+                >
                   ขอใบเสอราคา
-                </button>
-                <button className="w-full text-left px-3 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-800 rounded transition">
+                </Link>
+                <Link
+                  href="/quote-comparison"
+                  className={`block w-full text-left px-3 py-2 text-xs rounded transition ${isActive("/quote-comparison") ? "bg-slate-800 text-white" : "text-slate-300 hover:text-white hover:bg-slate-800"}`}
+                >
                   คัดเลือกร้านค้า
-                </button>
+                </Link>
                 <button className="w-full text-left px-3 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-800 rounded transition">
                   อนุมัติการจัดซื้อ
                 </button>
@@ -79,18 +95,24 @@ function Sidemenu() {
 
           {/* ค่าร้องขอจัดซื้อ */}
           <div className="mb-3">
-            <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-200 hover:bg-slate-800 transition">
+            <Link
+              href="/requests-selection"
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition ${isActive("/requests-selection") ? "bg-slate-800 text-white" : "text-slate-200 hover:bg-slate-800"}`}
+            >
               <FileText className="w-5 h-5" />
               คำร้องขอจัดซื้อ
-            </button>
+            </Link>
           </div>
 
           {/* การอบุมูติจัดซื้อ */}
           <div className="mb-3">
-            <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-200 hover:bg-slate-800 transition">
+            <Link
+              href="/quote-comparison"
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition ${isActive("/quote-comparison") ? "bg-slate-800 text-white" : "text-slate-200 hover:bg-slate-800"}`}
+            >
               <Users className="w-5 h-5" />
               การอนุมัติจัดซื้อ
-            </button>
+            </Link>
           </div>
         </div>
       </div>

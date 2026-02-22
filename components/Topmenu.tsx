@@ -3,9 +3,36 @@
 import { useState } from 'react'
 import { Search, Bell, User } from 'lucide-react'
 
+type NotificationItem = {
+  requestId: number
+  requestedAt: string | null
+}
+
+const formatDateTime = (value: string | null) => {
+  if (!value) {
+    return '-'
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  return date.toLocaleString('th-TH', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+}
+
 function Topmenu() {
   const [language, setLanguage] = useState('th')
   const [openLanguageMenu, setOpenLanguageMenu] = useState(false)
+  const [openNotificationMenu, setOpenNotificationMenu] = useState(false)
+  const [notifications] = useState<NotificationItem[]>([])
 
   const languages = [
     { code: 'en', name: 'English', flag: 'https://flagcdn.com/w40/gb.png' },
@@ -31,10 +58,35 @@ function Topmenu() {
       {/* Right Section - Icons and User */}
       <div className="flex items-center gap-6 ml-auto">
         {/* Notification Bell */}
-        <button className="relative text-slate-600 hover:text-slate-900 transition">
-          <Bell className="w-5 h-5" />
-          <span className="absolute top-0 right-0 w-2 h-2 bg-blue-500 rounded-full"></span>
-        </button>
+        <div className="relative">
+          <button
+            onClick={() => setOpenNotificationMenu(!openNotificationMenu)}
+            className="relative text-slate-600 hover:text-slate-900 transition"
+          >
+            <Bell className="w-5 h-5" />
+            <span className="absolute top-0 right-0 w-2 h-2 bg-blue-500 rounded-full"></span>
+          </button>
+
+          {openNotificationMenu && (
+            <div className="absolute top-full right-0 mt-2 w-80 bg-white border border-slate-200 rounded-lg shadow-lg z-50">
+              <div className="px-4 py-2 border-b border-slate-200 text-sm font-semibold text-slate-800">
+                แจ้งเตือนคำร้องใหม่
+              </div>
+              <div className="max-h-72 overflow-y-auto">
+                {notifications.length ? (
+                  notifications.map((notification, index) => (
+                    <div key={`${notification.requestId}-${index}`} className="px-4 py-3 border-b border-slate-100 last:border-b-0">
+                      <p className="text-sm text-slate-800">มี request id: <span className="font-semibold">{notification.requestId}</span></p>
+                      <p className="text-xs text-slate-500">requested_at: {formatDateTime(notification.requestedAt)}</p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-4 py-4 text-sm text-slate-500">ยังไม่มีแจ้งเตือนใหม่</div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Language Selector */}
         <div className="relative">

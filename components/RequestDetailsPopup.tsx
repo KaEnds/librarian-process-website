@@ -5,23 +5,23 @@ import { Input } from "@/components/ui/input"
 import { X } from "lucide-react"
 
 export type RequesterInfo = {
-  name: string
-  studentId: string
-  status: string
-  faculty: string
-  major: string
+  name: string | null
+  studentId: string | null
+  status: string | null
+  faculty: string | null
+  major: string | null
 }
 
 export type RequestDetails = {
-  title: string
-  author: string
-  isbn: string
-  year: string
-  publisher: string
-  branch: string
-  aiStatus: "approved" | "rejected"
-  requestReason: string
-  detailReason: string
+  title: string | null
+  author: string | null
+  isbn: string | null
+  year: string | null
+  publisher: string | null
+  branch: string | null
+  aiStatus: "approved" | "rejected" | "pending"
+  requestReason: string | null
+  detailReason: string | null
   requester: RequesterInfo
 }
 
@@ -31,11 +31,11 @@ type RequestDetailsPopupProps = {
   onClose: () => void
 }
 
-const ReadOnlyField = ({ label, value }: { label: string; value: string }) => {
+const ReadOnlyField = ({ label, value }: { label: string; value: string | null }) => {
   return (
     <div className="space-y-1">
       <p className="text-xs text-muted-foreground">{label}</p>
-      <Input value={value} readOnly className="h-9 border-gray-300 bg-background" />
+      <Input value={value ?? "-"} readOnly className="h-9 border-gray-300 bg-background" />
     </div>
   )
 }
@@ -77,8 +77,8 @@ export function RequestDetailsPopup({ open, data, onClose }: RequestDetailsPopup
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">การตีความ AI</p>
                   <div className="flex h-9 items-center rounded-md border border-input bg-background px-3">
-                    <Badge variant={data.aiStatus === "approved" ? "approved" : "rejected"}>
-                      {data.aiStatus === "approved" ? "Approved" : "Rejected"}
+                    <Badge variant={data.aiStatus === "approved" ? "approved" : data.aiStatus === "rejected" ? "rejected" : "pending"}>
+                      {data.aiStatus === "approved" ? "Approved" : data.aiStatus === "rejected" ? "Rejected" : "Pending"}
                     </Badge>
                   </div>
                 </div>
@@ -113,7 +113,7 @@ export function RequestDetailsPopup({ open, data, onClose }: RequestDetailsPopup
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground">Specify reason</p>
                     <textarea
-                      value={data.detailReason}
+                      value={data.detailReason ?? "-"}
                       readOnly
                       rows={5}
                       className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none"

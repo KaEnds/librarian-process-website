@@ -13,12 +13,13 @@ import {
 import { Send, X } from "lucide-react"
 
 export type ConfirmRequestItem = {
+  no: number
   id: number
   title: string
   author: string
   isbn: string
   publisher: string
-  status: "approved" | "rejected"
+  status: "approved" | "rejected" | "pending"
 }
 
 type ConfirmRequestPopupProps = {
@@ -69,15 +70,15 @@ export function ConfirmRequestPopup({
                   {requests.length > 0 ? (
                     requests.map((request) => (
                       <TableRow key={request.id}>
-                        <TableCell>{request.id}</TableCell>
+                        <TableCell>{request.no}</TableCell>
                         <TableCell className="font-semibold">{request.title}</TableCell>
                         <TableCell>{request.author}</TableCell>
                         <TableCell>{request.isbn}</TableCell>
                         <TableCell>{request.publisher}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end">
-                            <Badge variant={request.status === "approved" ? "approved" : "rejected"}>
-                              {request.status === "approved" ? "Approved" : "Rejected"}
+                            <Badge variant={request.status === "approved" ? "approved" : request.status === "rejected" ? "rejected" : "pending"}>
+                              {request.status === "approved" ? "Approved" : request.status === "rejected" ? "Rejected" : "Pending"}
                             </Badge>
                           </div>
                         </TableCell>
