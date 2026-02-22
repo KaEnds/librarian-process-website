@@ -25,4 +25,27 @@ export const testConnection = async (): Promise<boolean> => {
     console.error('❌ Database connection failed:', error.message);
     return false;
   }
+
 };
+
+export const getBookRequestsByBatches = async (): Promise<any[]> => {
+  try {
+    const client = await pool.connect();
+    const query = `SELECT 
+                      br.*, 
+                      pe.*, 
+                      b.batch_start_date, 
+                      b.batch_end_date
+                  FROM librairy.book_requests br
+                  JOIN librairy.batch_requests b_req ON br.request_id = b_req.request_id
+                  JOIN librairy.batches b ON b_req.batch_id = b.batch_id
+                  LEFT JOIN librairy.policy_evaluations pe ON br.request_id = pe.request_id AND b.batch_id = pe.batch_id
+                  WHERE CURRENT_TIMESTAMP BETWEEN b.batch_start_date AND b.batch_end_date`;
+    const result: QueryResult<any> = await client.query(query);
+    client.release();
+    return result.rows;
+  } catch (error: any) {
+    console.error('Error fetching book requests by batches:', error.message);
+    throw error;
+  }
+}
