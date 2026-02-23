@@ -17,6 +17,8 @@ export function UploadQuotationPopup({ open, onClose, onUpload }: UploadQuotatio
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [files, setFiles] = useState<File[]>([])
   const [isDragOver, setIsDragOver] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadStatus, setUploadStatus] = useState<"idle" | "uploading" | "success" | "error">("idle")
 
   const totalSizeText = useMemo(() => {
     const size = files.reduce((sum, file) => sum + file.size, 0)
@@ -55,14 +57,46 @@ export function UploadQuotationPopup({ open, onClose, onUpload }: UploadQuotatio
     mergeFiles(event.dataTransfer.files)
   }
 
-  const handleUpload = () => {
+  const handleUpload = async () => {
     if (files.length === 0) {
       return
     }
 
-    onUpload?.(files)
-    onClose()
-    setFiles([])
+    setIsUploading(true)
+    setUploadStatus("uploading")
+
+    try {
+      const formData = new FormData()
+      files.forEach((file) => {
+        formData.append("files", file)
+      })
+
+      const response = await fetch("/api/upload-to-drive", {
+        method: "POST",
+        body: formData,
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Upload failed")
+      }
+
+      setUploadStatus("success")
+      onUpload?.(files)
+      
+      // Close popup after 2 seconds
+      setTimeout(() => {
+        onClose()
+        setFiles([])
+        setUploadStatus("idle")
+      }, 2000)
+    } catch (error) {
+      console.error("Upload error:", error)
+      setUploadStatus("error")
+    } finally {
+      setIsUploading(false)
+    }
   }
 
   const handleClose = () => {
@@ -148,10 +182,33 @@ export function UploadQuotationPopup({ open, onClose, onUpload }: UploadQuotatio
         </div>
 
         <div className="flex items-center justify-end gap-3 border-t border-border bg-background px-5 py-3">
-          <Button variant="ghost" onClick={handleClose}>Cancel</Button>
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={handleUpload} disabled={files.length === 0}>
-            <Upload className="w-4 h-4 mr-2" />
-            Upload
+          <Button variant="ghost" onClick={handleClose} disabled={isUploading}>Cancel</Button>
+          <Button 
+            className="bg-blue-600 hover:bg-blue-700 text-white" 
+            onClick={handleUpload} 
+            disabled={files.length === 0 || isUploading}
+          >
+            {isUploading ? (
+              <>
+                <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                Uploading...
+              </>
+            ) : uploadStatus === "success" ? (
+              <>
+                <Upload className="w-4 h-4 mr-2" />
+                Uploaded Successfully
+              </>
+            ) : uploadStatus === "error" ? (
+              <>
+                <Upload className="w-4 h-4 mr-2" />
+                Upload Failed
+              </>
+            ) : (
+              <>
+                <Upload className="w-4 h-4 mr-2" />
+                Upload
+              </>
+            )}
           </Button>
         </div>
       </div>

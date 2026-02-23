@@ -130,7 +130,7 @@ export default function RequestsPage() {
           <div className="flex items-baseline gap-2 mb-1">
             <h1 className="text-xl font-bold">คำร้องขอจัดซื้อ</h1>
             <span className="text-blue-600 text-sm">
-              <span className="font-semibold">20 รายการ</span>
+              <span className="font-semibold">{data.length} รายการ</span>
             </span>
           </div>
           <p className="text-sm text-gray-600">ประจำวันที่ 6 ตุลาคม 2568</p>

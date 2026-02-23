@@ -123,6 +123,12 @@ export default function QuoteComparisonPage() {
     setSelectedAIQuote(null)
   }
 
+  const handleUploadFiles = (files: File[]) => {
+    console.log("Files uploaded to Google Drive:", files)
+    // You can add additional logic here after files are uploaded
+    // For example, refresh data, show toast notification, etc.
+  }
+
   return (
     <div className="w-full p-8 bg-gray-50 h-[calc(100vh-80px)]">
       <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
@@ -164,6 +170,7 @@ export default function QuoteComparisonPage() {
       <UploadQuotationPopup
         open={isUploadPopupOpen}
         onClose={() => setIsUploadPopupOpen(false)}
+        onUpload={handleUploadFiles}
       />
 
       <AISelectionPopup
