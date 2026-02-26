@@ -17,6 +17,7 @@ import {
   toTextOrNull,
 } from "@/lib/utils"
 import { Filter, Download, Plus, Send, X } from "lucide-react"
+import * as XLSX from "xlsx"
 
 export default function RequestsPage() {
   const [data, setData] = useState<Request[]>([])
@@ -162,6 +163,58 @@ export default function RequestsPage() {
 
   const activeFilterCount = filters.aiStatus.length + filters.actionStatus.length
 
+  const handleExport = () => {
+    // Prepare data for export
+    const exportData = filteredData.map((item, index) => ({
+      'ลำดับ': index + 1,
+      'ชื่อหนังสือ': item.details.title || '-',
+      'ผู้แต่ง': item.details.author || '-',
+      'ISBN/ISSN': item.details.isbn || '-',
+      'ปีที่พิมพ์': item.details.year || '-',
+      'สำนักพิมพ์': item.details.publisher || '-',
+      'สำหรับสาขา': item.details.branch || '-',
+      'ชื่อผู้ร้องขอ': item.details.requester.name || '-',
+      'รหัสประจำตัว': item.details.requester.studentId || '-',
+      'สถานะผู้ร้องขอ': item.details.requester.status || '-',
+      'คณะ': item.details.requester.faculty || '-',
+      'สาขาวิชา': item.details.requester.major || '-',
+      'เหตุผลการร้องขอ': item.details.requestReason || '-',
+      'รายละเอียดเพิ่มเติม': item.details.detailReason || '-'
+    }))
+
+    // Create workbook and worksheet
+    const worksheet = XLSX.utils.json_to_sheet(exportData)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'คำร้องขอจัดซื้อ')
+
+    // Set column widths
+    const columnWidths = [
+      { wch: 8 },  // ลำดับ
+      { wch: 40 }, // ชื่อหนังสือ
+      { wch: 25 }, // ผู้แต่ง
+      { wch: 15 }, // ISBN/ISSN
+      { wch: 12 }, // ปีที่พิมพ์
+      { wch: 25 }, // สำนักพิมพ์
+      { wch: 20 }, // สำหรับสาขา
+      { wch: 25 }, // ชื่อผู้ร้องขอ
+      { wch: 15 }, // รหัสประจำตัว
+      { wch: 15 }, // สถานะผู้ร้องขอ
+      { wch: 25 }, // คณะ
+      { wch: 25 }, // สาขาวิชา
+      { wch: 30 }, // เหตุผลการร้องขอ
+      { wch: 40 }  // รายละเอียดเพิ่มเติม
+    ]
+    worksheet['!cols'] = columnWidths
+
+    // Generate filename with current date
+    const today = new Date()
+    const dateStr = `${today.getDate()}-${today.getMonth() + 1}-${today.getFullYear()}`
+    const filename = `คำร้องขอจัดซื้อ_${dateStr}.xlsx`
+
+    // Export file
+    XLSX.writeFile(workbook, filename)
+  }
+
   const columns = getColumns(
     isSelectionMode,
     handleSelectionChange,
@@ -288,7 +341,11 @@ export default function RequestsPage() {
               </div>
             )}
           </div>
-          <Button variant="outline" className="bg-white">
+          <Button 
+            variant="outline" 
+            className="bg-white"
+            onClick={handleExport}
+          >
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>
