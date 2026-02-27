@@ -21,6 +21,7 @@ import * as XLSX from "xlsx"
 
 export default function RequestsPage() {
   const [data, setData] = useState<Request[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [isSelectionMode, setIsSelectionMode] = useState(false)
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null)
   const [selectedAIRequest, setSelectedAIRequest] = useState<Request | null>(null)
@@ -55,6 +56,10 @@ export default function RequestsPage() {
     let isMounted = true
 
     const syncRequests = async (incremental: boolean) => {
+      if (!incremental) {
+        setIsLoading(true)
+      }
+
       try {
         const since = incremental ? latestUpdatedAtRef.current : null
         const query = since ? `?since=${encodeURIComponent(since)}` : ""
@@ -91,6 +96,10 @@ export default function RequestsPage() {
         latestUpdatedAtRef.current = latestFromBatch
       } catch (error) {
         console.error("Error fetching book requests:", error)
+      } finally {
+        if (!incremental && isMounted) {
+          setIsLoading(false)
+        }
       }
     }
 
@@ -391,7 +400,7 @@ export default function RequestsPage() {
       </div>
 
       {/* Data Table */}
-      <DataTable columns={columns} data={filteredData} />
+      <DataTable columns={columns} data={filteredData} isLoading={isLoading} />
 
       <RequestDetailsPopup
         open={!!selectedRequest}
