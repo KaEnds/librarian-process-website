@@ -1,13 +1,46 @@
 "use client";
-import React from 'react';
+import React, { useState } from 'react';
 import { X } from "lucide-react";
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
+  onSubmit: (payload: {
+    vendorName: string;
+    contactPerson: string;
+    vendorEmail: string;
+    telephoneNumber: string;
+    lineId: string;
+    isActive: boolean;
+  }) => Promise<void>;
 }
 
-const AddStorePopup = ({ isOpen, onClose }: Props) => {
+const AddStorePopup = ({ isOpen, onClose, onSubmit }: Props) => {
+  const [vendorName, setVendorName] = useState("");
+  const [contactPerson, setContactPerson] = useState("");
+  const [vendorEmail, setVendorEmail] = useState("");
+  const [telephoneNumber, setTelephoneNumber] = useState("");
+  const [lineId, setLineId] = useState("");
+  const [isActive, setIsActive] = useState(true);
+
+  const handleSubmit = async () => {
+    await onSubmit({
+      vendorName,
+      contactPerson,
+      vendorEmail,
+      telephoneNumber,
+      lineId,
+      isActive,
+    });
+
+    setVendorName("");
+    setContactPerson("");
+    setVendorEmail("");
+    setTelephoneNumber("");
+    setLineId("");
+    setIsActive(true);
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -32,6 +65,8 @@ const AddStorePopup = ({ isOpen, onClose }: Props) => {
               type="text" 
               className="w-full bg-white border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all"
               placeholder="สวนเงินมีมา"
+              value={vendorName}
+              onChange={(e) => setVendorName(e.target.value)}
             />
           </div>
           <div>
@@ -40,6 +75,8 @@ const AddStorePopup = ({ isOpen, onClose }: Props) => {
               type="email" 
               className="w-full bg-white border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all"
               placeholder="Example@gmail.com"
+              value={vendorEmail}
+              onChange={(e) => setVendorEmail(e.target.value)}
             />
           </div>
           <div>
@@ -48,10 +85,46 @@ const AddStorePopup = ({ isOpen, onClose }: Props) => {
               type="text" 
               className="w-full bg-white border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all"
               placeholder="สมชาย บุญส่งดี"
+              value={contactPerson}
+              onChange={(e) => setContactPerson(e.target.value)}
             />
           </div>
 
-          <button className="w-full bg-blue-600 text-white font-semibold py-3 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all mt-4">
+          <div>
+            <label className="block text-xs font-semibold text-gray-400 mb-1.5 ml-1">Telephone Number</label>
+            <input
+              type="text"
+              className="w-full bg-white border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all"
+              placeholder="0999999999"
+              value={telephoneNumber}
+              onChange={(e) => setTelephoneNumber(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-400 mb-1.5 ml-1">Line ID</label>
+            <input
+              type="text"
+              className="w-full bg-white border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition-all"
+              placeholder="test_line"
+              value={lineId}
+              onChange={(e) => setLineId(e.target.value)}
+            />
+          </div>
+
+          <label className="flex items-center gap-2 text-sm text-gray-600">
+            <input
+              type="checkbox"
+              checked={isActive}
+              onChange={(e) => setIsActive(e.target.checked)}
+            />
+            เปิดใช้งานร้านค้านี้
+          </label>
+
+          <button
+            onClick={handleSubmit}
+            className="w-full bg-blue-600 text-white font-semibold py-3 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all mt-4"
+          >
             บันทึกรายการ
           </button>
         </div>

@@ -107,3 +107,63 @@ export const getAllBookRequests = async (since?: string): Promise<any[]> => {
     throw error;
   }
 }
+
+export const getAllVendor = async (): Promise<any[]> => {
+  try {    
+    
+    const client = await pool.connect();
+
+    const query = `SELECT * FROM librairy.vendors`;
+
+    const result: QueryResult<any> = await client.query(query);
+    client.release();
+    return result.rows;
+  } catch (error: any) {
+    console.error('Error fetching all vendors:', error.message);
+    throw error;
+  }
+}
+
+export const insertVendor = async (
+  vendorName: string, 
+  contactPerson: string, 
+  vendorEmail: string, 
+  telephoneNumber: string, 
+  lineId: string, 
+  isActive: boolean = true
+): Promise<number> => {
+  try {
+    const client = await pool.connect();
+
+    const query = `
+      INSERT INTO librairy.vendors (vendor_name, contact_person, vendor_email, telephone_number, line_id, is_active)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING vendor_id
+    `;
+    const values = [vendorName, contactPerson, vendorEmail, telephoneNumber, lineId, isActive];
+
+    const result: QueryResult<any> = await client.query(query, values);
+    client.release();
+    console.log('Vendor inserted successfully!');
+    return result.rows[0].vendor_id;
+  } catch (error: any) {
+    console.error('Error inserting vendor:', error.message);
+    throw error;
+  }
+}
+
+export const deleteVendor = async (vendorId: number): Promise<void> => {
+  try {
+    const client = await pool.connect();
+
+    const query = `DELETE FROM librairy.vendors WHERE vendor_id = $1`;
+    const values = [vendorId];
+
+    await client.query(query, values);
+    client.release();
+    console.log('Vendor deleted successfully!');
+  } catch (error: any) {
+    console.error('Error deleting vendor:', error.message);
+    throw error;
+  }
+}

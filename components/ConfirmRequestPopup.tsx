@@ -99,7 +99,7 @@ export function ConfirmRequestPopup({
           <div className="mt-4 flex items-end justify-between">
             <div>
               <p className="text-lg font-semibold">คำร้องที่เลือกทั้งหมด <span className="text-sm text-primary">{requests.length} รายการ</span></p>
-              <p className="text-sm text-muted-foreground">ประจำวันที่ 6 ตุลาคม 2568</p>
+              {/* <p className="text-sm text-muted-foreground">ประจำวันที่ 6 ตุลาคม 2568</p> */}
             </div>
 
             <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={onConfirm}>

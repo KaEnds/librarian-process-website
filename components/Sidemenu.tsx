@@ -30,7 +30,7 @@ function Sidemenu() {
           {/* Dashboard */}
           <div className="mb-3">
             <Link
-              href="/"
+              href="/dashboard"
               className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition ${isActive("/") ? "bg-slate-800 text-white" : "text-slate-200 hover:bg-slate-800"}`}
             >
               <Home className="w-5 h-5" />
@@ -83,11 +83,11 @@ function Sidemenu() {
           {/* จัดการร้านค้า */}
           <div className="mb-3">
             <Link
-              href="/stores"
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition ${isActive("/stores") ? "bg-slate-800 text-white" : "text-slate-200 hover:bg-slate-800"}`}
+              href="/vendor"
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition ${isActive("/vendor") ? "bg-slate-800 text-white" : "text-slate-200 hover:bg-slate-800"}`}
             >
               <Home className="w-5 h-5" />
-              จัดการร้านค้า
+              Vendor
             </Link>
           </div>
         </div>
