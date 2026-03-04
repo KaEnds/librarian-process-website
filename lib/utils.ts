@@ -34,6 +34,8 @@ export type ApiRequest = {
   score_breakdown?: Record<string, ApiScoreItem> | null
   updated_at?: string | null
   book_request_updated_at?: string | null
+  batch_start_date?: string | null
+  batch_end_date?: string | null
 }
 
 export const toTextOrNull = (value: unknown): string | null => {

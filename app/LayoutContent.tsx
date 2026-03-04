@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import Sidemenu from "@/components/Sidemenu";
 import Topmenu from "@/components/Topmenu";
+import { ToastProvider } from "@/components/Toast";
 
 export default function LayoutContent({
   children,
@@ -18,19 +19,21 @@ export default function LayoutContent({
 
   return (
     <body className={`${montserratVar} ${ibmPlexVar} antialiased`}>
-      {isAuthPage ? (
-        <>{children}</>
-      ) : (
-        <div className="flex h-screen">
-          <Sidemenu />
-          <div className="flex-1 flex flex-col relative">
-            <Topmenu />
-            <main className="flex-1 overflow-auto mt-20">
-              {children}
-            </main>
+      <ToastProvider>
+        {isAuthPage ? (
+          <>{children}</>
+        ) : (
+          <div className="flex h-screen">
+            <Sidemenu />
+            <div className="flex-1 flex flex-col relative">
+              <Topmenu />
+              <main className="flex-1 overflow-auto mt-20">
+                {children}
+              </main>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </ToastProvider>
     </body>
   );
 }

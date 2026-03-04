@@ -1,0 +1,19 @@
+import { getAllBookRequests } from "@/lib/db";
+import { NextRequest, NextResponse } from "next/server";
+
+export async function GET(request: NextRequest) {
+    try {
+        const sinceParam = request.nextUrl.searchParams.get("since") ?? undefined;
+        const response = await getAllBookRequests(sinceParam);
+        if (response) {
+            return NextResponse.json({ data: response }, { status: 200 });
+        }else {
+            return NextResponse.json({ message: "No book requests found" }, { status: 404 });
+        }
+        
+
+    }catch (error: any) {
+        return NextResponse.json({ message: "Error fetching book requests", error: error.message }, { status: 500 });
+    }
+
+}

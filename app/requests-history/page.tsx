@@ -6,39 +6,37 @@ import { DataTable } from "./data-table"
 import { Button } from "@/components/ui/button"
 import { RequestDetailsPopup } from "@/components/RequestDetailsPopup"
 import { AIDecisionDetailPopup } from "@/components/AIDecisionDetailPopup"
-import { ConfirmRequestPopup } from "@/components/ConfirmRequestPopup"
-import type { ConfirmRequestItem } from "@/components/ConfirmRequestPopup"
+import { Filter, Download, ChevronDown } from "lucide-react"
+import * as XLSX from "xlsx"
 import {
   ApiRequest,
-  buildConfirmRequestItems,
-  getRequestUpdatedAt,
   mapApiRequestToRequest,
-  mergeRequests,
   toTextOrNull,
 } from "@/lib/utils"
-import { Filter, Download, Plus, Send, X } from "lucide-react"
-import * as XLSX from "xlsx"
-import { useToast } from "@/components/Toast"
 
-export default function RequestsPage() {
+type BatchGroup = {
+  id: string
+  name: string
+  date: string
+  totalRequests: number
+  requests: Request[]
+}
+
+export default function RequestsHistoryPage() {
   const [data, setData] = useState<Request[]>([])
-  const [currentBatchDateText, setCurrentBatchDateText] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [isSelectionMode, setIsSelectionMode] = useState(false)
+  const [batches, setBatches] = useState<BatchGroup[]>([])
+  const [isLoading, setIsLoading] = useState(false)
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null)
   const [selectedAIRequest, setSelectedAIRequest] = useState<Request | null>(null)
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
-  const [isNextStepPopupOpen, setIsNextStepPopupOpen] = useState(false)
-  const [nextStepRequests, setNextStepRequests] = useState<ConfirmRequestItem[]>([])
-  const latestUpdatedAtRef = useRef<string | null>(null)
-  const previousCountRef = useRef<number>(0)
+  const [selectedBatch, setSelectedBatch] = useState<BatchGroup | null>(null)
+  const [isBatchDropdownOpen, setIsBatchDropdownOpen] = useState(false)
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [filters, setFilters] = useState({
     aiStatus: [] as string[],
     actionStatus: [] as string[],
   })
   const filterRef = useRef<HTMLDivElement>(null)
-  const { showToast } = useToast()
+  const batchDropdownRef = useRef<HTMLDivElement>(null)
 
   const formatThaiDate = (value: string | null | undefined): string | null => {
     const textValue = toTextOrNull(value)
@@ -59,15 +57,26 @@ export default function RequestsPage() {
     }).format(date)
   }
 
-  const buildBatchDateText = (item: ApiRequest): string | null => {
-    const startDate = formatThaiDate(item.batch_start_date)
-    const endDate = formatThaiDate(item.batch_end_date)
+  const toUnixTime = (value: string | null | undefined): number => {
+    const textValue = toTextOrNull(value)
+
+    if (!textValue) {
+      return 0
+    }
+
+    const unixTime = new Date(textValue).getTime()
+    return Number.isNaN(unixTime) ? 0 : unixTime
+  }
+
+  const createBatchDateText = (batchStartDate: string | null, batchEndDate: string | null): string => {
+    const startDate = formatThaiDate(batchStartDate)
+    const endDate = formatThaiDate(batchEndDate)
 
     if (startDate && endDate) {
       return `${startDate} - ${endDate}`
     }
 
-    return startDate ?? endDate
+    return startDate ?? endDate ?? "ไม่ระบุช่วงเวลา"
   }
 
   useEffect(() => {
@@ -75,134 +84,87 @@ export default function RequestsPage() {
       if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
         setIsFilterOpen(false)
       }
+      if (batchDropdownRef.current && !batchDropdownRef.current.contains(event.target as Node)) {
+        setIsBatchDropdownOpen(false)
+      }
     }
 
-    if (isFilterOpen) {
+    if (isFilterOpen || isBatchDropdownOpen) {
       document.addEventListener("mousedown", handleClickOutside)
     }
 
     return () => {
       document.removeEventListener("mousedown", handleClickOutside)
     }
-  }, [isFilterOpen])
+  }, [isFilterOpen, isBatchDropdownOpen])
 
+  // โหลดข้อมูลย้อนหลังและจัดกลุ่มตามช่วงเวลา batch
   useEffect(() => {
-    let isMounted = true
-
-    const syncRequests = async (incremental: boolean) => {
-      if (!incremental) {
-        setIsLoading(true)
-      }
-
+    const loadBatchData = async () => {
+      setIsLoading(true)
       try {
-        const since = incremental ? latestUpdatedAtRef.current : null
-        const query = since ? `?since=${encodeURIComponent(since)}` : ""
-        const response = await fetch(`/api/get-book-requests${query}`)
+        // ดึงข้อมูลจาก API
+        const response = await fetch('/api/get-all-book-requests')
         const payload = await response.json()
         const apiRequests: ApiRequest[] = Array.isArray(payload?.data) ? payload.data : []
 
-        if (!isMounted) {
-          return
-        }
+        const groupedRequests = apiRequests.reduce<Map<string, ApiRequest[]>>((result, item) => {
+          const batchStartDate = toTextOrNull(item.batch_start_date)
+          const batchEndDate = toTextOrNull(item.batch_end_date)
+          const key = `${batchStartDate ?? ""}|${batchEndDate ?? ""}`
 
-        const batchDateText = apiRequests.reduce<string | null>((current, item) => {
-          if (current) {
-            return current
-          }
+          const group = result.get(key) ?? []
+          group.push(item)
+          result.set(key, group)
+          return result
+        }, new Map())
 
-          return buildBatchDateText(item)
-        }, null)
-
-        if (batchDateText) {
-          setCurrentBatchDateText(batchDateText)
-        }
-
-        if (!apiRequests.length) {
-          return
-        }
-
-        const mappedRequests = apiRequests.map(mapApiRequestToRequest)
-
-        setData((previous) => {
-          const merged = incremental ? mergeRequests(previous, mappedRequests) : mappedRequests
-          
-          // แสดง notification เมื่อมี request ใหม่ (เฉพาะเมื่อโหลดแบบ incremental และไม่ใช่การโหลดครั้งแรก)
-          if (incremental && previousCountRef.current > 0) {
-            const newCount = merged.length - previous.length
-            if (newCount > 0) {
-              showToast(
-                `มีคำร้องขอจัดซื้อใหม่เข้ามา ${newCount} รายการ`,
-                'info',
-                5000
-              )
-            }
-          }
-          
-          // อัปเดตจำนวนล่าสุด
-          previousCountRef.current = merged.length
-          
-          return merged
+        const sortedGroups = [...groupedRequests.entries()].sort((a, b) => {
+          const [aStart, aEnd] = a[0].split("|")
+          const [bStart, bEnd] = b[0].split("|")
+          const aTime = Math.max(toUnixTime(aStart), toUnixTime(aEnd))
+          const bTime = Math.max(toUnixTime(bStart), toUnixTime(bEnd))
+          return bTime - aTime
         })
 
-        const latestFromBatch = apiRequests.reduce<string | null>((latest, item) => {
-          const updatedAt = toTextOrNull(getRequestUpdatedAt(item))
+        const mappedBatches: BatchGroup[] = sortedGroups.map(([key, requests], index) => {
+          const [batchStartDateRaw, batchEndDateRaw] = key.split("|")
+          const batchStartDate = toTextOrNull(batchStartDateRaw)
+          const batchEndDate = toTextOrNull(batchEndDateRaw)
+          const date = createBatchDateText(batchStartDate, batchEndDate)
+          const mappedRequests = requests.map(mapApiRequestToRequest)
 
-          if (!updatedAt) {
-            return latest
+          return {
+            id: key,
+            name: `Batch ${index + 1}`,
+            date,
+            totalRequests: mappedRequests.length,
+            requests: mappedRequests,
           }
+        })
 
-          if (!latest) {
-            return updatedAt
-          }
+        setBatches(mappedBatches)
 
-          return new Date(updatedAt).getTime() > new Date(latest).getTime() ? updatedAt : latest
-        }, latestUpdatedAtRef.current)
-
-        latestUpdatedAtRef.current = latestFromBatch
-      } catch (error) {
-        console.error("Error fetching book requests:", error)
-      } finally {
-        if (!incremental && isMounted) {
-          setIsLoading(false)
+        if (mappedBatches.length === 0) {
+          setSelectedBatch(null)
+          setData([])
+          return
         }
+
+        setSelectedBatch(mappedBatches[0])
+        setData(mappedBatches[0].requests)
+      } catch (error) {
+        console.error("Error loading batch data:", error)
+        setBatches([])
+        setSelectedBatch(null)
+        setData([])
+      } finally {
+        setIsLoading(false)
       }
     }
 
-    syncRequests(false)
-
-    const interval = setInterval(() => {
-      syncRequests(true)
-    }, 3000)
-
-    return () => {
-      isMounted = false
-      clearInterval(interval)
-    }
-  }, [showToast])
-
-  const handleSelectionChange = (requestId: number, checked: boolean) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      if (checked) {
-        next.add(requestId)
-      } else {
-        next.delete(requestId)
-      }
-      return next
-    })
-  }
-
-  const handleSubmitToNextStep = () => {
-    const selectedRequests: ConfirmRequestItem[] = buildConfirmRequestItems(data)
-
-    setNextStepRequests(selectedRequests)
-    setIsNextStepPopupOpen(true)
-  }
-
-  const handleConfirmNextStep = () => {
-    console.log("Selected requests:", nextStepRequests)
-    setIsNextStepPopupOpen(false)
-  }
+    loadBatchData()
+  }, [])
 
   const handleToggleFilter = (category: 'aiStatus' | 'actionStatus', value: string) => {
     setFilters(prev => {
@@ -226,7 +188,7 @@ export default function RequestsPage() {
     
     // Filter by Action Status
     if (filters.actionStatus.length > 0) {
-      const itemStatus = selectedIds.has(item.id) || item.action === "selected" ? "selected" : "pending"
+      const itemStatus = item.action === "selected" ? "selected" : "pending"
       if (!filters.actionStatus.includes(itemStatus)) {
         return false
       }
@@ -280,29 +242,72 @@ export default function RequestsPage() {
     ]
     worksheet['!cols'] = columnWidths
 
-    // Generate filename with current date
-    const today = new Date()
-    const dateStr = `${today.getDate()}-${today.getMonth() + 1}-${today.getFullYear()}`
-    const filename = `คำร้องขอจัดซื้อ_${dateStr}.xlsx`
+    // Generate filename with batch name
+    const filename = `คำร้องขอจัดซื้อ_${selectedBatch?.name ?? "history"}.xlsx`
 
     // Export file
     XLSX.writeFile(workbook, filename)
   }
 
   const columns = getColumns(
-    isSelectionMode,
-    handleSelectionChange,
     (request) => setSelectedRequest(request),
     (request) => setSelectedAIRequest(request)
   )
 
   return (
     <div className="w-full p-8 bg-gray-50 h-[calc(100vh-80px)]">
-      {/* Header Section */}
-      <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+      {/* Batch Selector Section */}
+      <div className="mb-6" ref={batchDropdownRef}>
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-semibold text-gray-700">เลือก Batch:</span>
+          <div className="relative">
+            <Button
+              variant="outline"
+              className={`bg-white min-w-[300px] justify-between ${isBatchDropdownOpen ? 'border-blue-500' : ''}`}
+              onClick={() => setIsBatchDropdownOpen(!isBatchDropdownOpen)}
+            >
+              <div className="flex flex-col items-start">
+                <span className="font-semibold">{selectedBatch?.name ?? "-"}</span>
+                <span className="text-xs text-gray-500">{selectedBatch?.date ?? "-"}</span>
+              </div>
+              <ChevronDown className="w-4 h-4 ml-2" />
+            </Button>
+
+            {/* Batch Dropdown */}
+            {isBatchDropdownOpen && (
+              <div className="absolute top-full mt-2 left-0 bg-white border border-gray-200 rounded-lg shadow-lg w-full z-50">
+                {batches.map((batch) => (
+                  <button
+                    key={batch.id}
+                    onClick={() => {
+                      setSelectedBatch(batch)
+                      setData(batch.requests)
+                      setIsBatchDropdownOpen(false)
+                    }}
+                    className={`w-full text-left px-4 py-3 hover:bg-gray-50 border-b last:border-b-0 transition-colors ${
+                      selectedBatch?.id === batch.id ? 'bg-blue-50' : ''
+                    }`}
+                  >
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <div className="font-semibold text-sm">{batch.name}</div>
+                        <div className="text-xs text-gray-500">{batch.date}</div>
+                      </div>
+                      <div className="text-xs text-gray-600">{batch.totalRequests} รายการ</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Info Section */}
+      <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
         <div className="flex items-center gap-2">
-          <span className="text-red-600 font-semibold">กำหนดการ</span>
-          <span className="text-sm text-gray-600">{currentBatchDateText ?? "-"}</span>
+          <span className="text-blue-600 font-semibold">ข้อมูลย้อนหลัง</span>
+          <span className="text-sm text-gray-600">{selectedBatch?.date ?? "-"}</span>
         </div>
       </div>
 
@@ -310,7 +315,7 @@ export default function RequestsPage() {
       <div className="border border-gray-200 bg-white rounded-lg p-4 flex items-center justify-between mb-6">
         <div>
           <div className="flex items-baseline gap-2 mb-1">
-            <h1 className="text-xl font-bold">คำร้องขอจัดซื้อ</h1>
+            <h1 className="text-xl font-bold">คำร้องขอจัดซื้อย้อนหลัง</h1>
             <span className="text-blue-600 text-sm">
               <span className="font-semibold">
                 {filteredData.length !== data.length 
@@ -320,7 +325,7 @@ export default function RequestsPage() {
               </span>
             </span>
           </div>
-          <p className="text-sm text-gray-600">ประจำวันที่ {currentBatchDateText ?? "-"}</p>
+          <p className="text-sm text-gray-600">{selectedBatch?.name ?? "-"}</p>
         </div>
         
         <div className="flex gap-3">
@@ -423,44 +428,6 @@ export default function RequestsPage() {
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>
-          {!isSelectionMode ? (
-            <Button 
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-              onClick={() => setIsSelectionMode(true)}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              เลือกคำร้องขอเอง
-            </Button>
-          ) : (
-            <>
-              <Button 
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-                onClick={() => {
-                  setData((previous) =>
-                    previous.map((item) => ({
-                      ...item,
-                      action: selectedIds.has(item.id) ? "selected" : "pending",
-                    }))
-                  )
-                  setIsSelectionMode(false)
-                }}
-              >
-                บันทึก
-              </Button>
-              <Button 
-                variant="outline" 
-                className="bg-white border-red-300 text-red-600 hover:bg-red-50"
-                onClick={() => setIsSelectionMode(false)}
-              >
-                <X className="w-4 h-4 mr-2" />
-                ยกเลิก
-              </Button>
-            </>
-          )}
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={handleSubmitToNextStep}>
-            <Send className="w-4 h-4 mr-2" />
-            ส่งคำร้องขอไปยังขั้นตอนถัดไป
-          </Button>
         </div>
       </div>
 
@@ -478,14 +445,6 @@ export default function RequestsPage() {
         data={selectedAIRequest?.aiSelectionDetail ?? null}
         onClose={() => setSelectedAIRequest(null)}
       />
-
-      <ConfirmRequestPopup
-        open={isNextStepPopupOpen}
-        requests={nextStepRequests}
-        onClose={() => setIsNextStepPopupOpen(false)}
-        onConfirm={handleConfirmNextStep}
-      />
     </div>
   )
 }
-

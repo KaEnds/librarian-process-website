@@ -99,8 +99,8 @@ function Sidemenu() {
           {/* ค่าร้องขอจัดซื้อ */}
           <div className="mb-3">
             <Link
-              href="/requests-selection"
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition ${isActive("/requests-selection") ? "bg-slate-800 text-white" : "text-slate-200 hover:bg-slate-800"}`}
+              href="/requests-history"
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition ${isActive("/requests-history") ? "bg-slate-800 text-white" : "text-slate-200 hover:bg-slate-800"}`}
             >
               <FileText className="w-5 h-5" />
               คำร้องขอจัดซื้อ
@@ -110,8 +110,8 @@ function Sidemenu() {
           {/* การอบุมูติจัดซื้อ */}
           <div className="mb-3">
             <Link
-              href="/quote-comparison"
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition ${isActive("/quote-comparison") ? "bg-slate-800 text-white" : "text-slate-200 hover:bg-slate-800"}`}
+              href="/approval-history"
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition ${isActive("/approval-history") ? "bg-slate-800 text-white" : "text-slate-200 hover:bg-slate-800"}`}
             >
               <Users className="w-5 h-5" />
               การอนุมัติจัดซื้อ
