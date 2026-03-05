@@ -43,14 +43,15 @@ export const getBookRequestsByBatches = async (since?: string): Promise<any[]> =
     }
 
     const query = `SELECT 
-                      br.*, 
-                      br.requested_at AS book_request_requested_at,
-                      br.updated_at AS book_request_updated_at,
-                      pe.*, 
-                      b.batch_start_date, 
-                      b.batch_end_date,
-                      f.faculty_name_th,
-                      d.department_name_th
+              br.*, 
+              br.requested_at AS book_request_requested_at,
+              br.updated_at AS book_request_updated_at,
+              pe.*, 
+              br.request_id AS request_id,
+              b.batch_start_date, 
+              b.batch_end_date,
+              f.faculty_name_th,
+              d.department_name_th
                   FROM librairy.book_requests br
                   JOIN librairy.batch_requests b_req ON br.request_id = b_req.request_id
                   JOIN librairy.batches b ON b_req.batch_id = b.batch_id
@@ -81,14 +82,15 @@ export const getAllBookRequests = async (since?: string): Promise<any[]> => {
     }
 
     const query = `SELECT 
-                      br.*, 
-                      br.requested_at AS book_request_requested_at,
-                      br.updated_at AS book_request_updated_at,
-                      pe.*, 
-                      b.batch_start_date, 
-                      b.batch_end_date,
-                      f.faculty_name_th,
-                      d.department_name_th
+              br.*, 
+              br.requested_at AS book_request_requested_at,
+              br.updated_at AS book_request_updated_at,
+              pe.*, 
+              br.request_id AS request_id,
+              b.batch_start_date, 
+              b.batch_end_date,
+              f.faculty_name_th,
+              d.department_name_th
                   FROM librairy.book_requests br
                   JOIN librairy.batch_requests b_req ON br.request_id = b_req.request_id
                   JOIN librairy.batches b ON b_req.batch_id = b.batch_id
@@ -164,6 +166,34 @@ export const deleteVendor = async (vendorId: number): Promise<void> => {
     console.log('Vendor deleted successfully!');
   } catch (error: any) {
     console.error('Error deleting vendor:', error.message);
+    throw error;
+  }
+}
+
+export const updateBookRequestReviewStatus = async (requestId: number, reviewStatus: "PENDING_REVIEW" | "REJECT_REVIEW" | "APPROVE_REVIEW"): Promise<boolean> => {
+  try {
+    const client = await pool.connect();
+
+    const query = `
+      UPDATE librairy.book_requests 
+      SET review_status = $1, updated_at = CURRENT_TIMESTAMP
+      WHERE request_id = $2
+      RETURNING request_id
+    `;
+    const values = [reviewStatus, requestId];
+
+    const result: QueryResult<any> = await client.query(query, values);
+    client.release();
+
+    if (result.rows.length === 0) {
+      console.warn(`Book request with ID ${requestId} not found`);
+      return false;
+    }
+
+    console.log(`Book request ${requestId} review_status updated to ${reviewStatus}`);
+    return true;
+  } catch (error: any) {
+    console.error('Error updating book request review_status:', error.message);
     throw error;
   }
 }

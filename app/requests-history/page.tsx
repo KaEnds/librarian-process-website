@@ -188,7 +188,7 @@ export default function RequestsHistoryPage() {
     
     // Filter by Action Status
     if (filters.actionStatus.length > 0) {
-      const itemStatus = item.action === "selected" ? "selected" : "pending"
+      const itemStatus = item.review_status === "APPROVE_REVIEW" ? "selected" : item.review_status === "REJECT_REVIEW" ? "rejected" : "pending"
       if (!filters.actionStatus.includes(itemStatus)) {
         return false
       }
@@ -405,6 +405,15 @@ export default function RequestsHistoryPage() {
                         className="rounded"
                       />
                       <span className="text-sm">เลือกแล้ว</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={filters.actionStatus.includes("rejected")}
+                        onChange={() => handleToggleFilter("actionStatus", "rejected")}
+                        className="rounded"
+                      />
+                      <span className="text-sm">ปฏิเสธ</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input

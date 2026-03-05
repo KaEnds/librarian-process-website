@@ -1,15 +1,37 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ChevronDown, Home, Grid2X2, FileText, Users, Bell, Settings, HelpCircle, Book } from 'lucide-react'
 import librairy_logo from '../images/librairy_logo.png'
+import {
+  getUnseenRequestNotifications,
+  REQUEST_NOTIFICATIONS_UPDATED_EVENT,
+} from '@/lib/request-notifications'
 
 function Sidemenu() {
   const [openWorkflow, setOpenWorkflow] = useState(false)
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0)
   const pathname = usePathname()
   const isActive = (path: string) => pathname === path
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const syncUnreadCount = () => {
+      setUnreadNotificationCount(getUnseenRequestNotifications().length)
+    }
+
+    syncUnreadCount()
+    window.addEventListener(REQUEST_NOTIFICATIONS_UPDATED_EVENT, syncUnreadCount)
+
+    return () => {
+      window.removeEventListener(REQUEST_NOTIFICATIONS_UPDATED_EVENT, syncUnreadCount)
+    }
+  }, [])
 
   return (
     <div className="w-64 h-screen bg-slate-900 text-white flex flex-col overflow-y-auto sidemenu-scroll">
@@ -47,7 +69,9 @@ function Sidemenu() {
               <div className="flex items-center gap-3">
                 <Grid2X2 className="w-5 h-5" />
                 <span>Workflow</span>
-                <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">1</span>
+                {unreadNotificationCount > 0 && (
+                  <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                )}
               </div>
               <ChevronDown className={`w-4 h-4 transition ${openWorkflow ? 'rotate-180' : ''}`} />
             </button>
@@ -57,9 +81,12 @@ function Sidemenu() {
               <div className="ml-8 mt-2 space-y-2">
                 <Link
                   href="/requests-selection"
-                  className={`block w-full text-left px-3 py-2 text-xs rounded transition ${isActive("/requests-selection") ? "bg-slate-800 text-white" : "text-slate-300 hover:text-white hover:bg-slate-800"}`}
+                  className={`flex items-center justify-between w-full text-left px-3 py-2 text-xs rounded transition ${isActive("/requests-selection") ? "bg-slate-800 text-white" : "text-slate-300 hover:text-white hover:bg-slate-800"}`}
                 >
-                  คัดเลือกคำร้อง
+                  <span>คัดเลือกคำร้อง</span>
+                  {unreadNotificationCount > 0 && (
+                    <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                  )}
                 </Link>
                 <Link
                   href="/quotation-request"
@@ -126,10 +153,18 @@ function Sidemenu() {
 
         <div className="space-y-3">
           {/* Notifications */}
-          <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-200 hover:bg-slate-800 transition">
-            <Bell className="w-5 h-5" />
-            Notifications
-          </button>
+          <Link
+            href="/notification-log"
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition ${isActive("/notification-log") ? "bg-slate-800 text-white" : "text-slate-200 hover:bg-slate-800"}`}
+          >
+            <span className="flex items-center gap-3">
+              <Bell className="w-5 h-5" />
+              Notifications
+            </span>
+            {unreadNotificationCount > 0 && (
+              <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+            )}
+          </Link>
 
           {/* Settings */}
           <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-200 hover:bg-slate-800 transition">

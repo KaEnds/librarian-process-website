@@ -8,13 +8,14 @@ import { AIDecisionDetailData } from "@/components/AIDecisionDetailPopup"
 
 export type Request = {
   id: number
+  request_id: number | null
   title: string | null
   author: string | null
   isbn: string | null
   publisher: string | null
   year: string | null
   status: "approved" | "rejected" | "pending"
-  action: "selected" | "pending"
+  review_status: "PENDING_REVIEW" | "APPROVE_REVIEW" | "REJECT_REVIEW" | null
   details: RequestDetails
   aiSelectionDetail: AIDecisionDetailData
 }
@@ -84,14 +85,28 @@ export const getColumns = (
       },
     },
     {
-      accessorKey: "action",
+      accessorKey: "review_status",
       header: "สถานะ",
       cell: ({ row }) => {
-        const action = row.getValue("action") as string
-        const isSelected = action === "selected"
+        const reviewStatus = row.getValue("review_status") as string | null
+        
+        let displayText = "รอดำเนินการ"
+        let textColor = "text-gray-600"
+        
+        if (reviewStatus === "APPROVE_REVIEW") {
+          displayText = "เลือกแล้ว"
+          textColor = "text-blue-600"
+        } else if (reviewStatus === "REJECT_REVIEW") {
+          displayText = "ปฏิเสธ"
+          textColor = "text-red-600"
+        } else {
+          displayText = "รอดำเนินการ"
+          textColor = "text-gray-600"
+        }
+        
         return (
-          <span className="text-sm text-blue-600">
-            {isSelected ? "เลือกแล้ว" : "รอดำเนินการ"}
+          <span className={`text-sm ${textColor}`}>
+            {displayText}
           </span>
         )
       },

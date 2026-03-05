@@ -19,6 +19,7 @@ import {
 import { Filter, Download, Plus, Send, X } from "lucide-react"
 import * as XLSX from "xlsx"
 import { useToast } from "@/components/Toast"
+import { addRequestNotifications, markRequestSeen } from "@/lib/request-notifications"
 
 export default function RequestsPage() {
   const [data, setData] = useState<Request[]>([])
@@ -39,6 +40,15 @@ export default function RequestsPage() {
   })
   const filterRef = useRef<HTMLDivElement>(null)
   const { showToast } = useToast()
+
+  const getRequestedAtFromApi = (item: ApiRequest): string | null => {
+    const normalized = item as ApiRequest & {
+      requested_at?: string | null
+      book_request_requested_at?: string | null
+    }
+
+    return toTextOrNull(normalized.book_request_requested_at ?? normalized.requested_at ?? null)
+  }
 
   const formatThaiDate = (value: string | null | undefined): string | null => {
     const textValue = toTextOrNull(value)
@@ -126,9 +136,35 @@ export default function RequestsPage() {
         setData((previous) => {
           const merged = incremental ? mergeRequests(previous, mappedRequests) : mappedRequests
           
+          // จัดเรียงตาม requested_at จากใหม่ไปเก่า (descending)
+          const sorted = merged.sort((a, b) => {
+            const dateA = a.requested_at ? new Date(a.requested_at).getTime() : 0
+            const dateB = b.requested_at ? new Date(b.requested_at).getTime() : 0
+            return dateB - dateA // descending (ใหม่ไปเก่า)
+          })
+          
           // แสดง notification เมื่อมี request ใหม่ (เฉพาะเมื่อโหลดแบบ incremental และไม่ใช่การโหลดครั้งแรก)
           if (incremental && previousCountRef.current > 0) {
-            const newCount = merged.length - previous.length
+            const previousIds = new Set(previous.map((item) => item.id))
+            const newRequests = mappedRequests.filter((item) => !previousIds.has(item.id))
+            const newCount = newRequests.length
+
+            if (newCount > 0) {
+              const requestIds = new Set(newRequests.map((item) => item.request_id).filter((value): value is number => typeof value === "number"))
+              const topMenuNotifications = apiRequests
+                .filter((item) => {
+                  const requestId = typeof item.request_id === "number" ? item.request_id : null
+                  return requestId !== null && requestIds.has(requestId)
+                })
+                .map((item) => ({
+                  requestId: item.request_id as number,
+                  title: toTextOrNull(item.title) ?? null,
+                  requestedAt: getRequestedAtFromApi(item),
+                }))
+
+              addRequestNotifications(topMenuNotifications)
+            }
+
             if (newCount > 0) {
               showToast(
                 `มีคำร้องขอจัดซื้อใหม่เข้ามา ${newCount} รายการ`,
@@ -139,9 +175,9 @@ export default function RequestsPage() {
           }
           
           // อัปเดตจำนวนล่าสุด
-          previousCountRef.current = merged.length
+          previousCountRef.current = sorted.length
           
-          return merged
+          return sorted
         })
 
         const latestFromBatch = apiRequests.reduce<string | null>((latest, item) => {
@@ -226,7 +262,15 @@ export default function RequestsPage() {
     
     // Filter by Action Status
     if (filters.actionStatus.length > 0) {
-      const itemStatus = selectedIds.has(item.id) || item.action === "selected" ? "selected" : "pending"
+      let itemStatus = "pending"
+      if (selectedIds.has(item.id)) {
+        itemStatus = "selected"
+      } else if (item.review_status === "APPROVE_REVIEW") {
+        itemStatus = "selected"
+      } else if (item.review_status === "REJECT_REVIEW") {
+        itemStatus = "rejected"
+      }
+      
       if (!filters.actionStatus.includes(itemStatus)) {
         return false
       }
@@ -291,9 +335,20 @@ export default function RequestsPage() {
 
   const columns = getColumns(
     isSelectionMode,
+    selectedIds,
     handleSelectionChange,
-    (request) => setSelectedRequest(request),
-    (request) => setSelectedAIRequest(request)
+    (request) => {
+      if (request.request_id) {
+        markRequestSeen(request.request_id)
+      }
+      setSelectedRequest(request)
+    },
+    (request) => {
+      if (request.request_id) {
+        markRequestSeen(request.request_id)
+      }
+      setSelectedAIRequest(request)
+    }
   )
 
   return (
@@ -404,6 +459,15 @@ export default function RequestsPage() {
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
+                        checked={filters.actionStatus.includes("rejected")}
+                        onChange={() => handleToggleFilter("actionStatus", "rejected")}
+                        className="rounded"
+                      />
+                      <span className="text-sm">ปฏิเสธ</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
                         checked={filters.actionStatus.includes("pending")}
                         onChange={() => handleToggleFilter("actionStatus", "pending")}
                         className="rounded"
@@ -426,7 +490,17 @@ export default function RequestsPage() {
           {!isSelectionMode ? (
             <Button 
               className="bg-blue-600 hover:bg-blue-700 text-white"
-              onClick={() => setIsSelectionMode(true)}
+              onClick={() => {
+                // เซ็ต selectedIds จาก review_status ที่มีอยู่
+                const initialSelectedIds = new Set<number>()
+                data.forEach((item) => {
+                  if (item.review_status === "APPROVE_REVIEW") {
+                    initialSelectedIds.add(item.id)
+                  }
+                })
+                setSelectedIds(initialSelectedIds)
+                setIsSelectionMode(true)
+              }}
             >
               <Plus className="w-4 h-4 mr-2" />
               เลือกคำร้องขอเอง
@@ -435,14 +509,52 @@ export default function RequestsPage() {
             <>
               <Button 
                 className="bg-blue-600 hover:bg-blue-700 text-white"
-                onClick={() => {
-                  setData((previous) =>
-                    previous.map((item) => ({
-                      ...item,
-                      action: selectedIds.has(item.id) ? "selected" : "pending",
-                    }))
-                  )
-                  setIsSelectionMode(false)
+                onClick={async () => {
+                  try {
+                    // อัพเดต review_status ในฐานข้อมูลสำหรับทุก request ที่เลือก
+                    const updatePromises = data
+                      .filter(item => item.request_id !== null) // เฉพาะ request ที่มี request_id จริง
+                      .map(async (item) => {
+                        const newReviewStatus = selectedIds.has(item.id) ? "APPROVE_REVIEW" : "PENDING_REVIEW"
+                        
+                        // เรียก API เฉพาะเมื่อมีการเปลี่ยนแปลง
+                        if (newReviewStatus !== item.review_status) {
+                          const response = await fetch('/api/edit-status-book-requests', {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                              requestId: item.request_id, // ใช้ request_id จริงจาก database
+                              reviewStatus: newReviewStatus,
+                            }),
+                          })
+                          
+                          if (!response.ok) {
+                            const errorData = await response.json()
+                            throw new Error(errorData.message || `Failed to update request ${item.request_id}`)
+                          }
+                        }
+                        
+                        return newReviewStatus
+                      })
+                    
+                    await Promise.all(updatePromises)
+                    
+                    // อัพเดต state หลังจากบันทึกสำเร็จ
+                    setData((previous) =>
+                      previous.map((item) => ({
+                        ...item,
+                        review_status: selectedIds.has(item.id) ? "APPROVE_REVIEW" : "PENDING_REVIEW",
+                      }))
+                    )
+                    
+                    setIsSelectionMode(false)
+                    showToast('บันทึกการเลือกคำร้องขอสำเร็จ', 'success', 3000)
+                  } catch (error) {
+                    console.error('Error updating review status:', error)
+                    showToast('เกิดข้อผิดพลาดในการบันทึก', 'error', 3000)
+                  }
                 }}
               >
                 บันทึก

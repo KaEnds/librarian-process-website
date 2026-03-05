@@ -6,22 +6,26 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ExternalLink } from "lucide-react"
 import { RequestDetails } from "@/components/RequestDetailsPopup"
 import { AIDecisionDetailData } from "@/components/AIDecisionDetailPopup"
+import { isRequestNew } from "@/lib/request-notifications"
 
 export type Request = {
   id: number
+  request_id: number | null
   title: string | null
   author: string | null
   isbn: string | null
   publisher: string | null
   year: string | null
   status: "approved" | "rejected" | "pending"
-  action: "selected" | "pending"
+  review_status: "PENDING_REVIEW" | "APPROVE_REVIEW" | "REJECT_REVIEW" | null
+  requested_at: string | null
   details: RequestDetails
   aiSelectionDetail: AIDecisionDetailData
 }
 
 export const getColumns = (
   showCheckbox: boolean,
+  selectedIds: Set<number>,
   onSelectionChange?: (requestId: number, checked: boolean) => void,
   onOpenDetails?: (request: Request) => void,
   onOpenAISelectionDetail?: (request: Request) => void
@@ -38,7 +42,16 @@ export const getColumns = (
       accessorKey: "title",
       header: "Title",
       cell: ({ row }) => {
-        return <div className="font-bold text-sm">{(row.getValue("title") as string | null) ?? "-"}</div>
+        const request = row.original
+        const isNew = request.request_id ? isRequestNew(request.request_id) : false
+        return (
+          <div className="flex items-center gap-2">
+            {isNew && (
+              <span className="w-2 h-2 bg-red-500 rounded-full flex-shrink-0"></span>
+            )}
+            <div className="font-bold text-sm">{(row.getValue("title") as string | null) ?? "-"}</div>
+          </div>
+        )
       },
     },
     {
@@ -87,15 +100,34 @@ export const getColumns = (
       },
     },
     {
-      accessorKey: "action",
+      accessorKey: "review_status",
       header: "สถานะ",
       cell: ({ row }) => {
-        const action = row.getValue("action") as string
-        const isSelectedByCheckbox = row.getIsSelected()
-        const isSelected = showCheckbox ? isSelectedByCheckbox : action === "selected"
+        const reviewStatus = row.getValue("review_status") as string | null
+        const isSelectedByCheckbox = selectedIds.has(row.original.id)
+        
+        let displayText = "รอดำเนินการ"
+        let textColor = "text-gray-600"
+        
+        if (showCheckbox) {
+          displayText = isSelectedByCheckbox ? "เลือกแล้ว" : "รอดำเนินการ"
+          textColor = isSelectedByCheckbox ? "text-blue-600" : "text-gray-600"
+        } else {
+          if (reviewStatus === "APPROVE_REVIEW") {
+            displayText = "เลือกแล้ว"
+            textColor = "text-blue-600"
+          } else if (reviewStatus === "REJECT_REVIEW") {
+            displayText = "ปฏิเสธ"
+            textColor = "text-red-600"
+          } else {
+            displayText = "รอดำเนินการ"
+            textColor = "text-gray-600"
+          }
+        }
+        
         return (
-          <span className="text-sm text-blue-600">
-            {isSelected ? "เลือกแล้ว" : "รอดำเนินการ"}
+          <span className={`text-sm ${textColor}`}>
+            {displayText}
           </span>
         )
       },
@@ -124,27 +156,30 @@ export const getColumns = (
   if (showCheckbox) {
     const selectColumn: ColumnDef<Request> = {
       id: "select",
-      header: ({ table }) => (
-        <Checkbox
-          className="h-5 w-5"
-          checked={table.getIsAllPageRowsSelected()}
-          onCheckedChange={(value) => {
-            table.toggleAllPageRowsSelected(!!value)
-            if (onSelectionChange) {
-              table.getRowModel().rows.forEach((row) => {
-                onSelectionChange(row.original.id, !!value)
-              })
-            }
-          }}
-          aria-label="Select all"
-        />
-      ),
+      header: ({ table }) => {
+        const rows = table.getRowModel().rows
+        const allRowsSelected = rows.length > 0 && rows.every((row) => selectedIds.has(row.original.id))
+
+        return (
+          <Checkbox
+            className="h-5 w-5"
+            checked={allRowsSelected}
+            onCheckedChange={(value) => {
+              if (onSelectionChange) {
+                rows.forEach((row) => {
+                  onSelectionChange(row.original.id, !!value)
+                })
+              }
+            }}
+            aria-label="Select all"
+          />
+        )
+      },
       cell: ({ row }) => (
         <Checkbox
           className="h-5 w-5"
-          checked={row.getIsSelected()}
+          checked={selectedIds.has(row.original.id)}
           onCheckedChange={(value) => {
-            row.toggleSelected(!!value)
             if (onSelectionChange) {
               onSelectionChange(row.original.id, !!value)
             }

@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Search, Bell, User } from 'lucide-react'
-
-type NotificationItem = {
-  requestId: number
-  requestedAt: string | null
-}
+import {
+  getUnseenRequestNotifications,
+  markAllRequestNotificationsSeen,
+  REQUEST_NOTIFICATIONS_UPDATED_EVENT,
+  type RequestNotificationItem,
+} from '@/lib/request-notifications'
 
 const formatDateTime = (value: string | null) => {
   if (!value) {
@@ -32,7 +33,33 @@ function Topmenu() {
   const [language, setLanguage] = useState('th')
   const [openLanguageMenu, setOpenLanguageMenu] = useState(false)
   const [openNotificationMenu, setOpenNotificationMenu] = useState(false)
-  const [notifications] = useState<NotificationItem[]>([])
+  const [notifications, setNotifications] = useState<RequestNotificationItem[]>([])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const syncNotifications = () => {
+      setNotifications(getUnseenRequestNotifications())
+    }
+
+    syncNotifications()
+    window.addEventListener(REQUEST_NOTIFICATIONS_UPDATED_EVENT, syncNotifications)
+
+    return () => {
+      window.removeEventListener(REQUEST_NOTIFICATIONS_UPDATED_EVENT, syncNotifications)
+    }
+  }, [])
+
+  const handleToggleNotificationMenu = () => {
+    if (openNotificationMenu && notifications.length > 0) {
+      markAllRequestNotificationsSeen()
+      setNotifications([])
+    }
+
+    setOpenNotificationMenu(!openNotificationMenu)
+  }
 
   const languages = [
     { code: 'en', name: 'English', flag: 'https://flagcdn.com/w40/gb.png' },
@@ -60,11 +87,13 @@ function Topmenu() {
         {/* Notification Bell */}
         <div className="relative">
           <button
-            onClick={() => setOpenNotificationMenu(!openNotificationMenu)}
+            onClick={handleToggleNotificationMenu}
             className="relative text-slate-600 hover:text-slate-900 transition"
           >
             <Bell className="w-5 h-5" />
-            <span className="absolute top-0 right-0 w-2 h-2 bg-blue-500 rounded-full"></span>
+            {notifications.length > 0 && (
+              <span className="absolute top-0 right-0 w-2 h-2 bg-blue-500 rounded-full"></span>
+            )}
           </button>
 
           {openNotificationMenu && (

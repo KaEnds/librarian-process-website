@@ -34,6 +34,7 @@ export type ApiRequest = {
   score_breakdown?: Record<string, ApiScoreItem> | null
   updated_at?: string | null
   book_request_updated_at?: string | null
+  book_request_requested_at?: string | null
   batch_start_date?: string | null
   batch_end_date?: string | null
 }
@@ -94,13 +95,15 @@ export const mapApiRequestToRequest = (item: ApiRequest, index: number): Request
 
   return {
     id: item.request_id ?? generateUniqueId(item),
+    request_id: item.request_id ?? null,
     title: toTextOrNull(item.title),
     author: toTextOrNull(item.authors),
     isbn: toTextOrNull(item.isbn_issn),
     publisher: toTextOrNull(item.publisher),
     year: toTextOrNull(item.publication_year),
     status: mappedStatus,
-    action: "pending",
+    review_status: (toTextOrNull(item.review_status) as "PENDING_REVIEW" | "APPROVE_REVIEW" | "REJECT_REVIEW" | null) ?? "PENDING_REVIEW",
+    requested_at: toTextOrNull(item.book_request_requested_at),
     details: {
       title: toTextOrNull(item.title),
       author: toTextOrNull(item.authors),
@@ -152,7 +155,7 @@ export const mergeRequests = (previous: Request[], incoming: Request[]): Request
     const existingRequest = next[existingIndex]
     next[existingIndex] = {
       ...incomingRequest,
-      action: existingRequest.action,
+      review_status: existingRequest.review_status,
     }
   })
 
@@ -161,7 +164,7 @@ export const mergeRequests = (previous: Request[], incoming: Request[]): Request
 
 export const buildConfirmRequestItems = (data: Request[]): ConfirmRequestItem[] => {
   return data.reduce<ConfirmRequestItem[]>((result, item, index) => {
-    if (item.action !== "selected") {
+    if (item.review_status !== "APPROVE_REVIEW") {
       return result
     }
 
