@@ -49,6 +49,18 @@ export const toTextOrNull = (value: unknown): string | null => {
 
 export const getRequestUpdatedAt = (item: ApiRequest) => item.book_request_updated_at ?? item.updated_at ?? null
 
+// สร้าง unique ID จาก combination ของข้อมูล (hash)
+const generateUniqueId = (item: ApiRequest): number => {
+  const combined = `${item.title}|${item.authors}|${item.isbn_issn}|${item.requester_id}`
+  let hash = 0
+  for (let i = 0; i < combined.length; i++) {
+    const char = combined.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
+    hash = hash & hash // Convert to 32bit integer
+  }
+  return Math.abs(hash) % 1000000 // Ensure positive and reasonable size
+}
+
 export const mapStatus = (item: ApiRequest): "approved" | "rejected" | "pending" => {
   if (item.status === "REJECT" || item.passed_selection === false) {
     return "rejected"
@@ -81,7 +93,7 @@ export const mapApiRequestToRequest = (item: ApiRequest, index: number): Request
   const mappedStatus = mapStatus(item)
 
   return {
-    id: item.request_id ?? index + 1,
+    id: item.request_id ?? generateUniqueId(item),
     title: toTextOrNull(item.title),
     author: toTextOrNull(item.authors),
     isbn: toTextOrNull(item.isbn_issn),
