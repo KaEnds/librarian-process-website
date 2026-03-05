@@ -26,6 +26,7 @@ export default function RequestsPage() {
   const [currentBatchDateText, setCurrentBatchDateText] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSelectionMode, setIsSelectionMode] = useState(false)
+  const [isSubmitted, setIsSubmitted] = useState(false)
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null)
   const [selectedAIRequest, setSelectedAIRequest] = useState<Request | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
@@ -228,16 +229,100 @@ export default function RequestsPage() {
     })
   }
 
-  const handleSubmitToNextStep = () => {
-    const selectedRequests: ConfirmRequestItem[] = buildConfirmRequestItems(data)
-
+  const handleSubmitToNextStep = async () => {
+    // Check if there are REJECT_REVIEW items
+    const rejectedItems = data.filter(item => item.review_status === "REJECT_REVIEW")
+    
+    let updatedData = data
+    
+    if (rejectedItems.length > 0) {
+      // Change all REJECT_REVIEW back to PENDING_REVIEW
+      try {
+        // Update in database
+        await Promise.all(
+          rejectedItems.map(async (item) => {
+            if (item.request_id) {
+              await fetch('/api/edit-status-book-requests', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  requestId: item.request_id,
+                  reviewStatus: 'PENDING_REVIEW'
+                })
+              })
+            }
+          })
+        )
+        
+        // Calculate updated data
+        updatedData = data.map(item => {
+          if (item.review_status === "REJECT_REVIEW") {
+            return { ...item, review_status: "PENDING_REVIEW" }
+          }
+          return item
+        })
+        
+        // Update in state
+        setData(updatedData)
+        setIsSubmitted(false) // Re-enable "เลือกคำร้องขอเอง" button
+        
+        showToast('เปลี่ยนสถานะเป็นรอดำเนินการแล้ว', 'success', 3000)
+        return // Don't open popup after changing back to PENDING_REVIEW
+      } catch (error) {
+        console.error('Error updating review status:', error)
+        showToast('เกิดข้อผิดพลาดในการอัปเดตสถานะ', 'error', 3000)
+        return
+      }
+    }
+    
+    // Open confirmation popup with approved requests (only when no rejected items)
+    const selectedRequests: ConfirmRequestItem[] = buildConfirmRequestItems(updatedData)
     setNextStepRequests(selectedRequests)
     setIsNextStepPopupOpen(true)
   }
 
-  const handleConfirmNextStep = () => {
-    console.log("Selected requests:", nextStepRequests)
-    setIsNextStepPopupOpen(false)
+  const handleConfirmNextStep = async () => {
+    // Change all PENDING_REVIEW to REJECT_REVIEW
+    const pendingItems = data.filter(item => item.review_status === "PENDING_REVIEW")
+    
+    if (pendingItems.length === 0) {
+      setIsNextStepPopupOpen(false)
+      return
+    }
+    
+    try {
+      // Update in database
+      await Promise.all(
+        pendingItems.map(async (item) => {
+          if (item.request_id) {
+            await fetch('/api/edit-status-book-requests', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                requestId: item.request_id,
+                reviewStatus: 'REJECT_REVIEW'
+              })
+            })
+          }
+        })
+      )
+      
+      // Update in state
+      setData((prev) => prev.map(item => {
+        if (item.review_status === "PENDING_REVIEW") {
+          return { ...item, review_status: "REJECT_REVIEW" }
+        }
+        return item
+      }))
+      
+      showToast('เปลี่ยนสถานะรายการที่รอดำเนินการเป็นปฏิเสธแล้ว', 'success', 3000)
+      setIsSubmitted(true) // Disable "เลือกคำร้องขอเอง" button
+      setIsNextStepPopupOpen(false)
+    } catch (error) {
+      console.error('Error updating review status:', error)
+      showToast('เกิดข้อผิดพลาดในการอัปเดตสถานะ', 'error', 3000)
+      setIsNextStepPopupOpen(false)
+    }
   }
 
   const handleToggleFilter = (category: 'aiStatus' | 'actionStatus', value: string) => {
@@ -489,7 +574,12 @@ export default function RequestsPage() {
           </Button>
           {!isSelectionMode ? (
             <Button 
-              className="bg-blue-600 hover:bg-blue-700 text-white"
+              className={`text-white ${
+                isSubmitted 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-blue-600 hover:bg-blue-700'
+              }`}
+              disabled={isSubmitted}
               onClick={() => {
                 // เซ็ต selectedIds จาก review_status ที่มีอยู่
                 const initialSelectedIds = new Set<number>()

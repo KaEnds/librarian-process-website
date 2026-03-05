@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 export async function GET(request: NextRequest) {
     try {
         const sinceParam = request.nextUrl.searchParams.get("since") ?? undefined;
-        const response = await getBookRequestsByBatches(sinceParam);
+        const response = await getBookRequestsByBatches();
         if (response) {
             return NextResponse.json({ data: response }, { status: 200 });
         }else {

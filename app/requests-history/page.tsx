@@ -256,53 +256,6 @@ export default function RequestsHistoryPage() {
 
   return (
     <div className="w-full p-8 bg-gray-50 h-[calc(100vh-80px)]">
-      {/* Batch Selector Section */}
-      <div className="mb-6" ref={batchDropdownRef}>
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-semibold text-gray-700">เลือก Batch:</span>
-          <div className="relative">
-            <Button
-              variant="outline"
-              className={`bg-white min-w-[300px] justify-between ${isBatchDropdownOpen ? 'border-blue-500' : ''}`}
-              onClick={() => setIsBatchDropdownOpen(!isBatchDropdownOpen)}
-            >
-              <div className="flex flex-col items-start">
-                <span className="font-semibold">{selectedBatch?.name ?? "-"}</span>
-                <span className="text-xs text-gray-500">{selectedBatch?.date ?? "-"}</span>
-              </div>
-              <ChevronDown className="w-4 h-4 ml-2" />
-            </Button>
-
-            {/* Batch Dropdown */}
-            {isBatchDropdownOpen && (
-              <div className="absolute top-full mt-2 left-0 bg-white border border-gray-200 rounded-lg shadow-lg w-full z-50">
-                {batches.map((batch) => (
-                  <button
-                    key={batch.id}
-                    onClick={() => {
-                      setSelectedBatch(batch)
-                      setData(batch.requests)
-                      setIsBatchDropdownOpen(false)
-                    }}
-                    className={`w-full text-left px-4 py-3 hover:bg-gray-50 border-b last:border-b-0 transition-colors ${
-                      selectedBatch?.id === batch.id ? 'bg-blue-50' : ''
-                    }`}
-                  >
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <div className="font-semibold text-sm">{batch.name}</div>
-                        <div className="text-xs text-gray-500">{batch.date}</div>
-                      </div>
-                      <div className="text-xs text-gray-600">{batch.totalRequests} รายการ</div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
       {/* Info Section */}
       <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
         <div className="flex items-center gap-2">
@@ -329,6 +282,41 @@ export default function RequestsHistoryPage() {
         </div>
         
         <div className="flex gap-3">
+          <div className="relative" ref={batchDropdownRef}>
+            <Button
+              variant="outline"
+              className={`bg-white min-w-[300px] justify-between ${isBatchDropdownOpen ? 'border-blue-500' : ''}`}
+              onClick={() => setIsBatchDropdownOpen(!isBatchDropdownOpen)}
+            >
+              <div className="flex flex-col items-start">
+                <span className="font-semibold">{selectedBatch?.name ?? "-"}</span>
+                <span className="text-xs text-gray-500">{selectedBatch?.date ?? "-"}</span>
+              </div>
+              <ChevronDown className="w-4 h-4 ml-2" />
+            </Button>
+
+            {isBatchDropdownOpen && (
+              <div className="absolute top-full mt-2 left-0 bg-white border border-gray-200 rounded-lg shadow-lg w-full z-50">
+                {batches.map((batch) => (
+                  <button
+                    key={batch.id}
+                    onClick={() => {
+                      setSelectedBatch(batch)
+                      setData(batch.requests)
+                      setIsBatchDropdownOpen(false)
+                    }}
+                    className={`w-full text-left px-4 py-3 hover:bg-gray-50 border-b last:border-b-0 transition-colors ${
+                      selectedBatch?.id === batch.id ? 'bg-blue-50' : ''
+                    }`}
+                  >
+                    <span className="font-semibold">{batch.name}</span>
+                    <p className="text-xs text-gray-500">{batch.date}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="relative" ref={filterRef}>
             <Button 
               variant="outline" 

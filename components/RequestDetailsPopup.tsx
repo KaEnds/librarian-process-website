@@ -4,6 +4,21 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { X } from "lucide-react"
 
+const formatDate = (dateString: string | null): string => {
+  if (!dateString) return "-"
+  try {
+    const date = new Date(dateString)
+    const options: Intl.DateTimeFormatOptions = {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }
+    return date.toLocaleDateString("th-TH", options)
+  } catch {
+    return dateString
+  }
+}
+
 export type RequesterInfo = {
   name: string | null
   studentId: string | null
@@ -20,6 +35,7 @@ export type RequestDetails = {
   publisher: string | null
   branch: string | null
   aiStatus: "approved" | "rejected" | "pending"
+  requestedAt: string | null
   requestReason: string | null
   detailReason: string | null
   requester: RequesterInfo
@@ -82,7 +98,7 @@ export function RequestDetailsPopup({ open, data, onClose }: RequestDetailsPopup
                     </Badge>
                   </div>
                 </div>
-                <div />
+                <ReadOnlyField label="วันที่ร้องขอ" value={formatDate(data.requestedAt)} />
               </div>
             </div>
 

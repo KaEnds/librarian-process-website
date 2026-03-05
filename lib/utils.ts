@@ -112,6 +112,7 @@ export const mapApiRequestToRequest = (item: ApiRequest, index: number): Request
       publisher: toTextOrNull(item.publisher),
       branch: toTextOrNull(item.branch),
       aiStatus: mappedStatus,
+      requestedAt: toTextOrNull(item.book_request_requested_at),
       requestReason: toTextOrNull(item.request_reason_category),
       detailReason: toTextOrNull(item.specify_reason),
       requester: {
