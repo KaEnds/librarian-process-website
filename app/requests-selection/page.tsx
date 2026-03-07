@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, useMemo } from "react"
+import { useRouter } from "next/navigation"
 import { getColumns } from "./columns"
 import { DataTable } from "./data-table"
 import { Button } from "@/components/ui/button"
@@ -17,6 +18,7 @@ import { exportRequestsToExcel } from "@/utils/export"
 import { applyFilters, getActiveFilterCount, type FilterState } from "@/utils/filters"
 
 export default function RequestsPage() {
+  const router = useRouter()
   const { showToast } = useToast()
   
   // State management
@@ -40,7 +42,9 @@ export default function RequestsPage() {
     onBatchDateText: setCurrentBatchDateText
   })
 
-  const { isSubmitted, setIsSubmitted } = useProcessStatus(1)
+  const { isSubmitted, setIsSubmitted, isProcessStatusLoading } = useProcessStatus(1)
+
+  const isActionLocked = isSubmitted || isProcessStatusLoading
 
   const {
     isNextStepPopupOpen,
@@ -53,7 +57,8 @@ export default function RequestsPage() {
     data,
     setData,
     setIsSubmitted,
-    showToast
+    showToast,
+    onNavigateToQuotation: () => router.push('/quotation-request')
   })
 
   // Computed values
@@ -95,7 +100,7 @@ export default function RequestsPage() {
   }
 
   const handleExport = () => {
-    exportRequestsToExcel(filteredData)
+    exportRequestsToExcel(filteredData, "คำร้องขอจัดซื้อ")
   }
 
   const enterSelectionMode = () => {
@@ -292,11 +297,11 @@ export default function RequestsPage() {
           {!isSelectionMode ? (
             <Button 
               className={`text-white ${
-                isSubmitted 
+                isActionLocked
                   ? 'bg-gray-400 cursor-not-allowed' 
                   : 'bg-blue-600 hover:bg-blue-700'
               }`}
-              disabled={isSubmitted}
+              disabled={isActionLocked}
               onClick={enterSelectionMode}
             >
               <Plus className="w-4 h-4 mr-2" />
@@ -320,7 +325,15 @@ export default function RequestsPage() {
               </Button>
             </>
           )}
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={handleSubmitToNextStep}>
+          <Button
+            className={`text-white ${
+              isActionLocked
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-blue-600 hover:bg-blue-700'
+            }`}
+            onClick={handleSubmitToNextStep}
+            disabled={isActionLocked}
+          >
             <Send className="w-4 h-4 mr-2" />
             ส่งคำร้องขอไปยังขั้นตอนถัดไป
           </Button>
@@ -328,7 +341,7 @@ export default function RequestsPage() {
       </div>
 
       {/* Data Table */}
-      <DataTable columns={columns} data={filteredData} isLoading={isLoading} />
+      <DataTable columns={columns} data={filteredData} isLoading={isLoading && data.length === 0} />
 
       <RequestDetailsPopup
         open={!!selectedRequest}

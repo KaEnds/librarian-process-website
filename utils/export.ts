@@ -18,7 +18,10 @@ const COLUMN_WIDTHS = [
   { wch: 40 }  // รายละเอียดเพิ่มเติม
 ]
 
-export const exportRequestsToExcel = (data: Request[]) => {
+export const exportRequestsToExcel = (
+  data: Request[],
+  fileBaseName: string
+) => {
   const exportData = data.map((item, index) => ({
     'ลำดับ': index + 1,
     'ชื่อหนังสือ': item.details.title || '-',
@@ -38,13 +41,13 @@ export const exportRequestsToExcel = (data: Request[]) => {
 
   const worksheet = XLSX.utils.json_to_sheet(exportData)
   const workbook = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'คำร้องขอจัดซื้อ')
+  XLSX.utils.book_append_sheet(workbook, worksheet, fileBaseName)
   
   worksheet['!cols'] = COLUMN_WIDTHS
 
   const today = new Date()
   const dateStr = `${today.getDate()}-${today.getMonth() + 1}-${today.getFullYear()}`
-  const filename = `คำร้องขอจัดซื้อ_${dateStr}.xlsx`
+  const filename = `${fileBaseName}_${dateStr}.xlsx`
 
   XLSX.writeFile(workbook, filename)
 }

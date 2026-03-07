@@ -1,4 +1,4 @@
-// API service layer for request selection
+// API service layer for requests management
 
 export const updateReviewStatus = async (
   requestId: number,
@@ -9,12 +9,12 @@ export const updateReviewStatus = async (
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ requestId, reviewStatus })
   })
-  
+
   if (!response.ok) {
     const errorData = await response.json()
     throw new Error(errorData.message || `Failed to update request ${requestId}`)
   }
-  
+
   return response
 }
 
@@ -24,11 +24,11 @@ export const updateProcessState = async (processId: number, status: string) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ processId, status })
   })
-  
+
   if (!response.ok) {
     throw new Error(`Failed to update process ${processId}`)
   }
-  
+
   return response
 }
 
@@ -39,3 +39,4 @@ export const updateMultipleProcessStates = async (
     updates.map(({ processId, status }) => updateProcessState(processId, status))
   )
 }
+

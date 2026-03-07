@@ -189,6 +189,17 @@ const Workflow = () => {
             {/* Connector Arrow */}
             {index < steps.length - 1 && (
               <div className="flex-shrink-0 mx-4 mt-[-40px]">
+                {(() => {
+                  const currentStep = steps[index];
+                  const nextStep = steps[index + 1];
+                  const arrowClass =
+                    currentStep?.status === 'Done' && nextStep?.status === 'Done'
+                      ? 'text-green-500'
+                      : nextStep?.status === 'In Progress'
+                        ? 'arrow-active'
+                        : 'text-gray-400';
+
+                  return (
                 <svg
                   width="40"
                   height="24"
@@ -198,10 +209,12 @@ const Workflow = () => {
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className={steps[index + 1]?.status === 'In Progress' ? 'arrow-active' : 'text-gray-400'}
+                  className={arrowClass}
                 >
                   <path d="M5 12h14M12 5l7 7-7 7" />
                 </svg>
+                  );
+                })()}
               </div>
             )}
           </React.Fragment>

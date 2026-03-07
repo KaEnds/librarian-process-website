@@ -13,8 +13,11 @@ import {
 function Sidemenu() {
   const [openWorkflow, setOpenWorkflow] = useState(false)
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0)
+  const [currentProcessId, setCurrentProcessId] = useState<number | null>(null)
   const pathname = usePathname()
   const isActive = (path: string) => pathname === path
+
+  const isProcessActive = (processId: number) => currentProcessId === processId
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -30,6 +33,39 @@ function Sidemenu() {
 
     return () => {
       window.removeEventListener(REQUEST_NOTIFICATIONS_UPDATED_EVENT, syncUnreadCount)
+    }
+  }, [])
+
+  useEffect(() => {
+    let isMounted = true
+
+    const fetchProcessStates = async () => {
+      try {
+        const response = await fetch('/api/get-all-process-states')
+        if (!response.ok) {
+          return
+        }
+
+        const payload = await response.json()
+        const processStates = Array.isArray(payload?.data) ? payload.data : []
+        const currentProcess = processStates.find(
+          (process: { process_id?: number; status?: string }) => process?.status === 'IN_PROGRESS'
+        )
+
+        if (isMounted) {
+          setCurrentProcessId(typeof currentProcess?.process_id === 'number' ? currentProcess.process_id : null)
+        }
+      } catch (error) {
+        console.error('Error fetching process states in sidemenu:', error)
+      }
+    }
+
+    fetchProcessStates()
+    const interval = setInterval(fetchProcessStates, 3000)
+
+    return () => {
+      isMounted = false
+      clearInterval(interval)
     }
   }, [])
 
@@ -69,7 +105,7 @@ function Sidemenu() {
               <div className="flex items-center gap-3">
                 <Grid2X2 className="w-5 h-5" />
                 <span>Workflow</span>
-                {unreadNotificationCount > 0 && (
+                {(unreadNotificationCount > 0 || currentProcessId !== null) && (
                   <span className="w-2 h-2 bg-red-500 rounded-full"></span>
                 )}
               </div>
@@ -84,24 +120,33 @@ function Sidemenu() {
                   className={`flex items-center justify-between w-full text-left px-3 py-2 text-xs rounded transition ${isActive("/requests-selection") ? "bg-slate-800 text-white" : "text-slate-300 hover:text-white hover:bg-slate-800"}`}
                 >
                   <span>คัดเลือกคำร้อง</span>
-                  {unreadNotificationCount > 0 && (
+                  {(unreadNotificationCount > 0 || isProcessActive(1)) && (
                     <span className="w-2 h-2 bg-red-500 rounded-full"></span>
                   )}
                 </Link>
                 <Link
                   href="/quotation-request"
-                  className={`block w-full text-left px-3 py-2 text-xs rounded transition ${isActive("/quotation-request") ? "bg-slate-800 text-white" : "text-slate-300 hover:text-white hover:bg-slate-800"}`}
+                  className={`flex items-center justify-between w-full text-left px-3 py-2 text-xs rounded transition ${isActive("/quotation-request") ? "bg-slate-800 text-white" : "text-slate-300 hover:text-white hover:bg-slate-800"}`}
                 >
-                  ขอใบเสอราคา
+                  <span>ขอใบเสอราคา</span>
+                  {isProcessActive(2) && (
+                    <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                  )}
                 </Link>
                 <Link
                   href="/quote-comparison"
-                  className={`block w-full text-left px-3 py-2 text-xs rounded transition ${isActive("/quote-comparison") ? "bg-slate-800 text-white" : "text-slate-300 hover:text-white hover:bg-slate-800"}`}
+                  className={`flex items-center justify-between w-full text-left px-3 py-2 text-xs rounded transition ${isActive("/quote-comparison") ? "bg-slate-800 text-white" : "text-slate-300 hover:text-white hover:bg-slate-800"}`}
                 >
-                  คัดเลือกร้านค้า
+                  <span>คัดเลือกร้านค้า</span>
+                  {isProcessActive(3) && (
+                    <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                  )}
                 </Link>
-                <button className="w-full text-left px-3 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-800 rounded transition">
-                  อนุมัติการจัดซื้อ
+                <button className="w-full flex items-center justify-between text-left px-3 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-800 rounded transition">
+                  <span>อนุมัติการจัดซื้อ</span>
+                  {isProcessActive(4) && (
+                    <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                  )}
                 </button>
               </div>
             )}

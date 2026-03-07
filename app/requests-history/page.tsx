@@ -429,7 +429,7 @@ export default function RequestsHistoryPage() {
       </div>
 
       {/* Data Table */}
-      <DataTable columns={columns} data={filteredData} isLoading={isLoading} />
+      <DataTable columns={columns} data={filteredData} isLoading={isLoading && data.length === 0} />
 
       <RequestDetailsPopup
         open={!!selectedRequest}

@@ -2,58 +2,28 @@ import { useState } from "react"
 import { Request } from "../columns"
 import { buildConfirmRequestItems } from "@/utils/utils"
 import type { ConfirmRequestItem } from "@/components/ConfirmRequestPopup"
-import { updateReviewStatus, updateMultipleProcessStates } from "../services/api"
+import { updateReviewStatus, updateMultipleProcessStates } from "@/utils/api"
 
 interface UseRequestActionsOptions {
   data: Request[]
   setData: React.Dispatch<React.SetStateAction<Request[]>>
   setIsSubmitted: (value: boolean) => void
   showToast: (message: string, type: 'success' | 'error' | 'info', duration?: number) => void
+  onNavigateToQuotation?: () => void
 }
 
 export const useRequestActions = ({
   data,
   setData,
   setIsSubmitted,
-  showToast
+  showToast,
+  onNavigateToQuotation
 }: UseRequestActionsOptions) => {
   const [isNextStepPopupOpen, setIsNextStepPopupOpen] = useState(false)
   const [nextStepRequests, setNextStepRequests] = useState<ConfirmRequestItem[]>([])
 
   const handleSubmitToNextStep = async () => {
     const rejectedItems = data.filter(item => item.review_status === "REJECT_REVIEW")
-    
-    if (rejectedItems.length > 0) {
-      try {
-        // Update rejected items back to pending
-        await Promise.all(
-          rejectedItems.map(item => 
-            item.request_id ? updateReviewStatus(item.request_id, 'PENDING_REVIEW') : Promise.resolve()
-          )
-        )
-        
-        // Update state
-        const updatedData = data.map(item => ({
-          ...item,
-          review_status: item.review_status === "REJECT_REVIEW" ? "PENDING_REVIEW" : item.review_status
-        })) as Request[]
-        
-        setData(updatedData)
-        setIsSubmitted(false)
-        
-        // Update process states
-        await updateMultipleProcessStates([
-          { processId: 1, status: 'IN_PROGRESS' },
-          { processId: 2, status: 'PENDING' }
-        ])
-        
-        showToast('เปลี่ยนสถานะเป็นรอดำเนินการแล้ว', 'success', 3000)
-      } catch (error) {
-        console.error('Error updating review status:', error)
-        showToast('เกิดข้อผิดพลาดในการอัปเดตสถานะ', 'error', 3000)
-      }
-      return
-    }
     
     // Open confirmation popup
     const selectedRequests = buildConfirmRequestItems(data)
@@ -92,6 +62,7 @@ export const useRequestActions = ({
       showToast('เปลี่ยนสถานะรายการที่รอดำเนินการเป็นปฏิเสธแล้ว', 'success', 3000)
       setIsSubmitted(true)
       setIsNextStepPopupOpen(false)
+      onNavigateToQuotation?.()
     } catch (error) {
       console.error('Error updating review status:', error)
       showToast('เกิดข้อผิดพลาดในการอัปเดตสถานะ', 'error', 3000)
