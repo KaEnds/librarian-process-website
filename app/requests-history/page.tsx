@@ -12,7 +12,7 @@ import {
   ApiRequest,
   mapApiRequestToRequest,
   toTextOrNull,
-} from "@/lib/utils"
+} from "@/utils/utils"
 
 type BatchGroup = {
   id: string

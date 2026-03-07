@@ -133,6 +133,24 @@ const Workflow = () => {
           animation: rotate-reverse 1.4s linear infinite;
           pointer-events: none;
         }
+
+        @keyframes arrow-flow {
+          0%,
+          100% {
+            transform: translateX(0);
+            opacity: 0.7;
+          }
+          50% {
+            transform: translateX(4px);
+            opacity: 1;
+          }
+        }
+
+        .arrow-active {
+          color: rgb(244 114 182);
+          animation: arrow-flow 1s ease-in-out infinite;
+          filter: drop-shadow(0 0 6px rgba(244, 114, 182, 0.5));
+        }
       `}</style>
       
       <h3 className="text-lg font-semibold mb-6">กระบวนการทำงาน</h3>
@@ -142,7 +160,7 @@ const Workflow = () => {
             {/* Step Circle */}
             <div className="flex flex-col items-center flex-1">
               <div className={`relative w-20 h-20 rounded-full flex items-center justify-center border-4 mb-3 transition-all duration-300
-                ${step.status === 'Done' ? 'border-blue-500 bg-white text-blue-500' : 
+                ${step.status === 'Done' ? 'border-green-500 bg-green-50 text-green-600' : 
                   step.status === 'In Progress' ? 'border-pink-400 bg-pink-400 text-white animate-pulse-glow' : 
                   'border-gray-300 bg-gray-50 text-gray-400'}`}>
                 {step.status === 'In Progress' && (
@@ -171,7 +189,17 @@ const Workflow = () => {
             {/* Connector Arrow */}
             {index < steps.length - 1 && (
               <div className="flex-shrink-0 mx-4 mt-[-40px]">
-                <svg width="40" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400">
+                <svg
+                  width="40"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className={steps[index + 1]?.status === 'In Progress' ? 'arrow-active' : 'text-gray-400'}
+                >
                   <path d="M5 12h14M12 5l7 7-7 7" />
                 </svg>
               </div>

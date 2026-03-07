@@ -1,245 +1,73 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
-import { getColumns, Request } from "./columns"
+import { useEffect, useRef, useState, useMemo } from "react"
+import { getColumns } from "./columns"
 import { DataTable } from "./data-table"
 import { Button } from "@/components/ui/button"
 import { RequestDetailsPopup } from "@/components/RequestDetailsPopup"
 import { AIDecisionDetailPopup } from "@/components/AIDecisionDetailPopup"
 import { ConfirmRequestPopup } from "@/components/ConfirmRequestPopup"
-import type { ConfirmRequestItem } from "@/components/ConfirmRequestPopup"
-import {
-  ApiRequest,
-  buildConfirmRequestItems,
-  getRequestUpdatedAt,
-  mapApiRequestToRequest,
-  mergeRequests,
-  toTextOrNull,
-} from "@/lib/utils"
 import { Filter, Download, Plus, Send, X } from "lucide-react"
-import * as XLSX from "xlsx"
 import { useToast } from "@/components/Toast"
-import { addRequestNotifications, markRequestSeen } from "@/lib/request-notifications"
+import { markRequestSeen } from "@/lib/request-notifications"
+import { useBookRequests } from "./hooks/useBookRequests"
+import { useProcessStatus } from "./hooks/useProcessStatus"
+import { useRequestActions } from "./hooks/useRequestActions"
+import { exportRequestsToExcel } from "@/utils/export"
+import { applyFilters, getActiveFilterCount, type FilterState } from "@/utils/filters"
 
 export default function RequestsPage() {
-  const [data, setData] = useState<Request[]>([])
+  const { showToast } = useToast()
+  
+  // State management
   const [currentBatchDateText, setCurrentBatchDateText] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
   const [isSelectionMode, setIsSelectionMode] = useState(false)
-  const [isSubmitted, setIsSubmitted] = useState(false)
-  const [selectedRequest, setSelectedRequest] = useState<Request | null>(null)
-  const [selectedAIRequest, setSelectedAIRequest] = useState<Request | null>(null)
+  const [selectedRequest, setSelectedRequest] = useState<any>(null)
+  const [selectedAIRequest, setSelectedAIRequest] = useState<any>(null)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
-  const [isNextStepPopupOpen, setIsNextStepPopupOpen] = useState(false)
-  const [nextStepRequests, setNextStepRequests] = useState<ConfirmRequestItem[]>([])
-  const latestUpdatedAtRef = useRef<string | null>(null)
-  const previousCountRef = useRef<number>(0)
   const [isFilterOpen, setIsFilterOpen] = useState(false)
-  const [filters, setFilters] = useState({
-    aiStatus: [] as string[],
-    actionStatus: [] as string[],
+  const [filters, setFilters] = useState<FilterState>({
+    aiStatus: [],
+    actionStatus: [],
   })
   const filterRef = useRef<HTMLDivElement>(null)
-  const { showToast } = useToast()
 
-  const getRequestedAtFromApi = (item: ApiRequest): string | null => {
-    const normalized = item as ApiRequest & {
-      requested_at?: string | null
-      book_request_requested_at?: string | null
-    }
+  // Custom hooks
+  const { data, setData, isLoading } = useBookRequests({
+    onNewRequests: (count) => {
+      showToast(`มีคำร้องขอจัดซื้อใหม่เข้ามา ${count} รายการ`, 'info', 5000)
+    },
+    onBatchDateText: setCurrentBatchDateText
+  })
 
-    return toTextOrNull(normalized.book_request_requested_at ?? normalized.requested_at ?? null)
-  }
+  const { isSubmitted, setIsSubmitted } = useProcessStatus(1)
 
-  const formatThaiDate = (value: string | null | undefined): string | null => {
-    const textValue = toTextOrNull(value)
+  const {
+    isNextStepPopupOpen,
+    setIsNextStepPopupOpen,
+    nextStepRequests,
+    handleSubmitToNextStep,
+    handleConfirmNextStep,
+    handleSaveSelection
+  } = useRequestActions({
+    data,
+    setData,
+    setIsSubmitted,
+    showToast
+  })
 
-    if (!textValue) {
-      return null
-    }
+  // Computed values
+  const filteredData = useMemo(
+    () => applyFilters(data, filters, selectedIds),
+    [data, filters, selectedIds]
+  )
 
-    const date = new Date(textValue)
-    if (Number.isNaN(date.getTime())) {
-      return null
-    }
+  const activeFilterCount = useMemo(
+    () => getActiveFilterCount(filters),
+    [filters]
+  )
 
-    return new Intl.DateTimeFormat("th-TH-u-ca-buddhist", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    }).format(date)
-  }
-
-  const buildBatchDateText = (item: ApiRequest): string | null => {
-    const startDate = formatThaiDate(item.batch_start_date)
-    const endDate = formatThaiDate(item.batch_end_date)
-
-    if (startDate && endDate) {
-      return `${startDate} - ${endDate}`
-    }
-
-    return startDate ?? endDate
-  }
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
-        setIsFilterOpen(false)
-      }
-    }
-
-    if (isFilterOpen) {
-      document.addEventListener("mousedown", handleClickOutside)
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside)
-    }
-  }, [isFilterOpen])
-
-  useEffect(() => {
-    const fetchProcessStatus = async () => {
-      try {
-        const response = await fetch('/api/get-process-state?processId=1')
-        if (response.ok) {
-          const data = await response.json()
-          const status = data.status
-          
-          // Map status to isSubmitted
-          if (status === 'DONE') {
-            setIsSubmitted(true)
-          } else if (status === 'PENDING' || status === 'IN_PROGRESS') {
-            setIsSubmitted(false)
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching process status:', error)
-      }
-    }
-
-    fetchProcessStatus()
-  }, [])
-
-  useEffect(() => {
-    let isMounted = true
-
-    const syncRequests = async (incremental: boolean) => {
-      if (!incremental) {
-        setIsLoading(true)
-      }
-
-      try {
-        const since = incremental ? latestUpdatedAtRef.current : null
-        const query = since ? `?since=${encodeURIComponent(since)}` : ""
-        const response = await fetch(`/api/get-book-requests${query}`)
-        const payload = await response.json()
-        const apiRequests: ApiRequest[] = Array.isArray(payload?.data) ? payload.data : []
-
-        if (!isMounted) {
-          return
-        }
-
-        const batchDateText = apiRequests.reduce<string | null>((current, item) => {
-          if (current) {
-            return current
-          }
-
-          return buildBatchDateText(item)
-        }, null)
-
-        if (batchDateText) {
-          setCurrentBatchDateText(batchDateText)
-        }
-
-        if (!apiRequests.length) {
-          return
-        }
-
-        const mappedRequests = apiRequests.map(mapApiRequestToRequest)
-
-        setData((previous) => {
-          const merged = incremental ? mergeRequests(previous, mappedRequests) : mappedRequests
-          
-          // จัดเรียงตาม requested_at จากใหม่ไปเก่า (descending)
-          const sorted = merged.sort((a, b) => {
-            const dateA = a.requested_at ? new Date(a.requested_at).getTime() : 0
-            const dateB = b.requested_at ? new Date(b.requested_at).getTime() : 0
-            return dateB - dateA // descending (ใหม่ไปเก่า)
-          })
-          
-          // แสดง notification เมื่อมี request ใหม่ (เฉพาะเมื่อโหลดแบบ incremental และไม่ใช่การโหลดครั้งแรก)
-          if (incremental && previousCountRef.current > 0) {
-            const previousIds = new Set(previous.map((item) => item.id))
-            const newRequests = mappedRequests.filter((item) => !previousIds.has(item.id))
-            const newCount = newRequests.length
-
-            if (newCount > 0) {
-              const requestIds = new Set(newRequests.map((item) => item.request_id).filter((value): value is number => typeof value === "number"))
-              const topMenuNotifications = apiRequests
-                .filter((item) => {
-                  const requestId = typeof item.request_id === "number" ? item.request_id : null
-                  return requestId !== null && requestIds.has(requestId)
-                })
-                .map((item) => ({
-                  requestId: item.request_id as number,
-                  title: toTextOrNull(item.title) ?? null,
-                  requestedAt: getRequestedAtFromApi(item),
-                }))
-
-              addRequestNotifications(topMenuNotifications)
-            }
-
-            if (newCount > 0) {
-              showToast(
-                `มีคำร้องขอจัดซื้อใหม่เข้ามา ${newCount} รายการ`,
-                'info',
-                5000
-              )
-            }
-          }
-          
-          // อัปเดตจำนวนล่าสุด
-          previousCountRef.current = sorted.length
-          
-          return sorted
-        })
-
-        const latestFromBatch = apiRequests.reduce<string | null>((latest, item) => {
-          const updatedAt = toTextOrNull(getRequestUpdatedAt(item))
-
-          if (!updatedAt) {
-            return latest
-          }
-
-          if (!latest) {
-            return updatedAt
-          }
-
-          return new Date(updatedAt).getTime() > new Date(latest).getTime() ? updatedAt : latest
-        }, latestUpdatedAtRef.current)
-
-        latestUpdatedAtRef.current = latestFromBatch
-      } catch (error) {
-        console.error("Error fetching book requests:", error)
-      } finally {
-        if (!incremental && isMounted) {
-          setIsLoading(false)
-        }
-      }
-    }
-
-    syncRequests(false)
-
-    const interval = setInterval(() => {
-      syncRequests(true)
-    }, 3000)
-
-    return () => {
-      isMounted = false
-      clearInterval(interval)
-    }
-  }, [showToast])
-
+  // Event handlers
   const handleSelectionChange = (requestId: number, checked: boolean) => {
     setSelectedIds((prev) => {
       const next = new Set(prev)
@@ -250,146 +78,6 @@ export default function RequestsPage() {
       }
       return next
     })
-  }
-
-  const handleSubmitToNextStep = async () => {
-    // Check if there are REJECT_REVIEW items
-    const rejectedItems = data.filter(item => item.review_status === "REJECT_REVIEW")
-    
-    let updatedData = data
-    
-    if (rejectedItems.length > 0) {
-      // Change all REJECT_REVIEW back to PENDING_REVIEW
-      try {
-        // Update in database
-        await Promise.all(
-          rejectedItems.map(async (item) => {
-            if (item.request_id) {
-              await fetch('/api/edit-status-book-requests', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  requestId: item.request_id,
-                  reviewStatus: 'PENDING_REVIEW'
-                })
-              })
-            }
-          })
-        )
-        
-        // Calculate updated data
-        updatedData = data.map(item => {
-          if (item.review_status === "REJECT_REVIEW") {
-            return { ...item, review_status: "PENDING_REVIEW" }
-          }
-          return item
-        })
-        
-        // Update in state
-        setData(updatedData)
-        setIsSubmitted(false) // Re-enable "เลือกคำร้องขอเอง" button
-        
-        // Update process status to IN_PROGRESS and reset process 2 to PENDING
-        try {
-          await Promise.all([
-            fetch('/api/update-process-state', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                processId: 1,
-                status: 'IN_PROGRESS'
-              })
-            }),
-            fetch('/api/update-process-state', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                processId: 2,
-                status: 'PENDING'
-              })
-            })
-          ])
-        } catch (error) {
-          console.error('Error updating process status:', error)
-        }
-        
-        showToast('เปลี่ยนสถานะเป็นรอดำเนินการแล้ว', 'success', 3000)
-        return // Don't open popup after changing back to PENDING_REVIEW
-      } catch (error) {
-        console.error('Error updating review status:', error)
-        showToast('เกิดข้อผิดพลาดในการอัปเดตสถานะ', 'error', 3000)
-        return
-      }
-    }
-    
-    // Open confirmation popup with approved requests (only when no rejected items)
-    const selectedRequests: ConfirmRequestItem[] = buildConfirmRequestItems(updatedData)
-    setNextStepRequests(selectedRequests)
-    setIsNextStepPopupOpen(true)
-  }
-
-  const handleConfirmNextStep = async () => {
-    // Change all PENDING_REVIEW to REJECT_REVIEW
-    const pendingItems = data.filter(item => item.review_status === "PENDING_REVIEW")
-    
-    if (pendingItems.length === 0) {
-      setIsNextStepPopupOpen(false)
-      return
-    }
-    
-    try {
-      // Update in database
-      await Promise.all(
-        pendingItems.map(async (item) => {
-          if (item.request_id) {
-            await fetch('/api/edit-status-book-requests', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                requestId: item.request_id,
-                reviewStatus: 'REJECT_REVIEW'
-              })
-            })
-          }
-        })
-      )
-      
-      // Update process status to DONE and set process 2 to IN_PROGRESS
-      await Promise.all([
-        fetch('/api/update-process-state', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            processId: 1,
-            status: 'DONE'
-          })
-        }),
-        fetch('/api/update-process-state', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            processId: 2,
-            status: 'IN_PROGRESS'
-          })
-        })
-      ])
-      
-      // Update in state
-      setData((prev) => prev.map(item => {
-        if (item.review_status === "PENDING_REVIEW") {
-          return { ...item, review_status: "REJECT_REVIEW" }
-        }
-        return item
-      }))
-      
-      showToast('เปลี่ยนสถานะรายการที่รอดำเนินการเป็นปฏิเสธแล้ว', 'success', 3000)
-      setIsSubmitted(true) // Disable "เลือกคำร้องขอเอง" button
-      setIsNextStepPopupOpen(false)
-    } catch (error) {
-      console.error('Error updating review status:', error)
-      showToast('เกิดข้อผิดพลาดในการอัปเดตสถานะ', 'error', 3000)
-      setIsNextStepPopupOpen(false)
-    }
   }
 
   const handleToggleFilter = (category: 'aiStatus' | 'actionStatus', value: string) => {
@@ -406,84 +94,46 @@ export default function RequestsPage() {
     setFilters({ aiStatus: [], actionStatus: [] })
   }
 
-  const filteredData = data.filter(item => {
-    // Filter by AI Status
-    if (filters.aiStatus.length > 0 && !filters.aiStatus.includes(item.status)) {
-      return false
-    }
-    
-    // Filter by Action Status
-    if (filters.actionStatus.length > 0) {
-      let itemStatus = "pending"
-      if (selectedIds.has(item.id)) {
-        itemStatus = "selected"
-      } else if (item.review_status === "APPROVE_REVIEW") {
-        itemStatus = "selected"
-      } else if (item.review_status === "REJECT_REVIEW") {
-        itemStatus = "rejected"
-      }
-      
-      if (!filters.actionStatus.includes(itemStatus)) {
-        return false
-      }
-    }
-    
-    return true
-  })
-
-  const activeFilterCount = filters.aiStatus.length + filters.actionStatus.length
-
   const handleExport = () => {
-    // Prepare data for export
-    const exportData = filteredData.map((item, index) => ({
-      'ลำดับ': index + 1,
-      'ชื่อหนังสือ': item.details.title || '-',
-      'ผู้แต่ง': item.details.author || '-',
-      'ISBN/ISSN': item.details.isbn || '-',
-      'ปีที่พิมพ์': item.details.year || '-',
-      'สำนักพิมพ์': item.details.publisher || '-',
-      'สำหรับสาขา': item.details.branch || '-',
-      'ชื่อผู้ร้องขอ': item.details.requester.name || '-',
-      'รหัสประจำตัว': item.details.requester.studentId || '-',
-      'สถานะผู้ร้องขอ': item.details.requester.status || '-',
-      'คณะ': item.details.requester.faculty || '-',
-      'สาขาวิชา': item.details.requester.major || '-',
-      'เหตุผลการร้องขอ': item.details.requestReason || '-',
-      'รายละเอียดเพิ่มเติม': item.details.detailReason || '-'
-    }))
-
-    // Create workbook and worksheet
-    const worksheet = XLSX.utils.json_to_sheet(exportData)
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'คำร้องขอจัดซื้อ')
-
-    // Set column widths
-    const columnWidths = [
-      { wch: 8 },  // ลำดับ
-      { wch: 40 }, // ชื่อหนังสือ
-      { wch: 25 }, // ผู้แต่ง
-      { wch: 15 }, // ISBN/ISSN
-      { wch: 12 }, // ปีที่พิมพ์
-      { wch: 25 }, // สำนักพิมพ์
-      { wch: 20 }, // สำหรับสาขา
-      { wch: 25 }, // ชื่อผู้ร้องขอ
-      { wch: 15 }, // รหัสประจำตัว
-      { wch: 15 }, // สถานะผู้ร้องขอ
-      { wch: 25 }, // คณะ
-      { wch: 25 }, // สาขาวิชา
-      { wch: 30 }, // เหตุผลการร้องขอ
-      { wch: 40 }  // รายละเอียดเพิ่มเติม
-    ]
-    worksheet['!cols'] = columnWidths
-
-    // Generate filename with current date
-    const today = new Date()
-    const dateStr = `${today.getDate()}-${today.getMonth() + 1}-${today.getFullYear()}`
-    const filename = `คำร้องขอจัดซื้อ_${dateStr}.xlsx`
-
-    // Export file
-    XLSX.writeFile(workbook, filename)
+    exportRequestsToExcel(filteredData)
   }
+
+  const enterSelectionMode = () => {
+    const initialSelectedIds = new Set<number>()
+    data.forEach((item) => {
+      if (item.review_status === "APPROVE_REVIEW") {
+        initialSelectedIds.add(item.id)
+      }
+    })
+    setSelectedIds(initialSelectedIds)
+    setIsSelectionMode(true)
+  }
+
+  const saveAndExitSelectionMode = async () => {
+    const success = await handleSaveSelection(selectedIds)
+    if (success) {
+      setIsSelectionMode(false)
+    }
+  }
+
+  // Close filter dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
+        setIsFilterOpen(false)
+      }
+    }
+
+    if (isFilterOpen) {
+      document.addEventListener("mousedown", handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [isFilterOpen])
+
+  // Table columns configuration
 
   const columns = getColumns(
     isSelectionMode,
@@ -647,17 +297,7 @@ export default function RequestsPage() {
                   : 'bg-blue-600 hover:bg-blue-700'
               }`}
               disabled={isSubmitted}
-              onClick={() => {
-                // เซ็ต selectedIds จาก review_status ที่มีอยู่
-                const initialSelectedIds = new Set<number>()
-                data.forEach((item) => {
-                  if (item.review_status === "APPROVE_REVIEW") {
-                    initialSelectedIds.add(item.id)
-                  }
-                })
-                setSelectedIds(initialSelectedIds)
-                setIsSelectionMode(true)
-              }}
+              onClick={enterSelectionMode}
             >
               <Plus className="w-4 h-4 mr-2" />
               เลือกคำร้องขอเอง
@@ -666,53 +306,7 @@ export default function RequestsPage() {
             <>
               <Button 
                 className="bg-blue-600 hover:bg-blue-700 text-white"
-                onClick={async () => {
-                  try {
-                    // อัพเดต review_status ในฐานข้อมูลสำหรับทุก request ที่เลือก
-                    const updatePromises = data
-                      .filter(item => item.request_id !== null) // เฉพาะ request ที่มี request_id จริง
-                      .map(async (item) => {
-                        const newReviewStatus = selectedIds.has(item.id) ? "APPROVE_REVIEW" : "PENDING_REVIEW"
-                        
-                        // เรียก API เฉพาะเมื่อมีการเปลี่ยนแปลง
-                        if (newReviewStatus !== item.review_status) {
-                          const response = await fetch('/api/edit-status-book-requests', {
-                            method: 'POST',
-                            headers: {
-                              'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                              requestId: item.request_id, // ใช้ request_id จริงจาก database
-                              reviewStatus: newReviewStatus,
-                            }),
-                          })
-                          
-                          if (!response.ok) {
-                            const errorData = await response.json()
-                            throw new Error(errorData.message || `Failed to update request ${item.request_id}`)
-                          }
-                        }
-                        
-                        return newReviewStatus
-                      })
-                    
-                    await Promise.all(updatePromises)
-                    
-                    // อัพเดต state หลังจากบันทึกสำเร็จ
-                    setData((previous) =>
-                      previous.map((item) => ({
-                        ...item,
-                        review_status: selectedIds.has(item.id) ? "APPROVE_REVIEW" : "PENDING_REVIEW",
-                      }))
-                    )
-                    
-                    setIsSelectionMode(false)
-                    showToast('บันทึกการเลือกคำร้องขอสำเร็จ', 'success', 3000)
-                  } catch (error) {
-                    console.error('Error updating review status:', error)
-                    showToast('เกิดข้อผิดพลาดในการบันทึก', 'error', 3000)
-                  }
-                }}
+                onClick={saveAndExitSelectionMode}
               >
                 บันทึก
               </Button>
