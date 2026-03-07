@@ -98,6 +98,29 @@ export default function RequestsPage() {
   }, [isFilterOpen])
 
   useEffect(() => {
+    const fetchProcessStatus = async () => {
+      try {
+        const response = await fetch('/api/get-process-state?processId=1')
+        if (response.ok) {
+          const data = await response.json()
+          const status = data.status
+          
+          // Map status to isSubmitted
+          if (status === 'DONE') {
+            setIsSubmitted(true)
+          } else if (status === 'PENDING' || status === 'IN_PROGRESS') {
+            setIsSubmitted(false)
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching process status:', error)
+      }
+    }
+
+    fetchProcessStatus()
+  }, [])
+
+  useEffect(() => {
     let isMounted = true
 
     const syncRequests = async (incremental: boolean) => {
@@ -266,6 +289,30 @@ export default function RequestsPage() {
         setData(updatedData)
         setIsSubmitted(false) // Re-enable "เลือกคำร้องขอเอง" button
         
+        // Update process status to IN_PROGRESS and reset process 2 to PENDING
+        try {
+          await Promise.all([
+            fetch('/api/update-process-state', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                processId: 1,
+                status: 'IN_PROGRESS'
+              })
+            }),
+            fetch('/api/update-process-state', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                processId: 2,
+                status: 'PENDING'
+              })
+            })
+          ])
+        } catch (error) {
+          console.error('Error updating process status:', error)
+        }
+        
         showToast('เปลี่ยนสถานะเป็นรอดำเนินการแล้ว', 'success', 3000)
         return // Don't open popup after changing back to PENDING_REVIEW
       } catch (error) {
@@ -306,6 +353,26 @@ export default function RequestsPage() {
           }
         })
       )
+      
+      // Update process status to DONE and set process 2 to IN_PROGRESS
+      await Promise.all([
+        fetch('/api/update-process-state', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            processId: 1,
+            status: 'DONE'
+          })
+        }),
+        fetch('/api/update-process-state', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            processId: 2,
+            status: 'IN_PROGRESS'
+          })
+        })
+      ])
       
       // Update in state
       setData((prev) => prev.map(item => {

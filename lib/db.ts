@@ -198,3 +198,77 @@ export const updateBookRequestReviewStatus = async (requestId: number, reviewSta
     throw error;
   }
 }
+
+export const updateProcessStatus = async (processId: number, status: string): Promise<boolean> => {
+  try {
+    const client = await pool.connect();
+
+    const query = `
+      UPDATE librairy.process_state 
+      SET status = $1, updated_at = CURRENT_TIMESTAMP
+      WHERE process_id = $2
+      RETURNING process_id
+    `;
+    const values = [status, processId];
+
+    const result: QueryResult<any> = await client.query(query, values);
+    client.release();
+
+    if (result.rows.length === 0) {
+      console.warn(`Process with ID ${processId} not found`);
+      return false;
+    }
+
+    console.log(`Process ${processId} status updated to ${status}`);
+    return true;
+  } catch (error: any) {
+    console.error('Error updating process status:', error.message);
+    throw error;
+  }
+}
+
+export const getProcessStatus = async (processId: number): Promise<string | null> => {
+  try {
+    const client = await pool.connect();
+
+    const query = `
+      SELECT status
+      FROM librairy.process_state 
+      WHERE process_id = $1
+    `;
+    const values = [processId];
+
+    const result: QueryResult<any> = await client.query(query, values);
+    client.release();
+
+    if (result.rows.length === 0) {
+      console.warn(`Process with ID ${processId} not found`);
+      return null;
+    }
+
+    return result.rows[0].status;
+  } catch (error: any) {
+    console.error('Error getting process status:', error.message);
+    throw error;
+  }
+}
+
+export const getAllProcessStates = async (): Promise<any[]> => {
+  try {
+    const client = await pool.connect();
+
+    const query = `
+      SELECT process_id, status, updated_at
+      FROM librairy.process_state 
+      ORDER BY process_id ASC
+    `;
+
+    const result: QueryResult<any> = await client.query(query);
+    client.release();
+
+    return result.rows;
+  } catch (error: any) {
+    console.error('Error getting all process states:', error.message);
+    throw error;
+  }
+}
