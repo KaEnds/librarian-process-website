@@ -67,6 +67,8 @@ export const useBookRequests = (options: UseBookRequestsOptions = {}) => {
         const payload = await response.json()
         const apiRequests: ApiRequest[] = Array.isArray(payload?.data) ? payload.data : []
 
+        console.log(payload)
+
         if (!isMounted) return
 
         // Get batch date text

@@ -1,126 +1,197 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { getColumns, QuoteComparison } from "./columns"
 import { DataTable } from "./data-table"
 import { Button } from "@/components/ui/button"
 import { UploadQuotationPopup } from "@/components/UploadQuotationPopup"
 import { AISelectionPopup } from "@/components/AISelectionPopup"
+import { useToast } from "@/components/Toast"
 import { Filter, Upload, Send } from "lucide-react"
 
-function getData(): QuoteComparison[] {
-  const buildRow = (
-    id: number,
-    cuBook: string,
-    vendorA: string,
-    vendorB: string,
-    aiStatus: "complete" | "processing" | "rejected",
-    librarianSelection: string
-  ): QuoteComparison => ({
-    id,
-    title: "Bold text column",
-    author: "Regular text column",
-    cuBook,
-    vendorA,
-    vendorB,
-    aiStatus,
-    librarianSelection,
-    aiSelectionDetail: {
-      quoteId: id,
-      title: id === 1 ? "Harry potter" : "Bold text column",
-      selectedVendor: librarianSelection === "ยังไม่ได้เลือก" ? null : librarianSelection,
-      comparisonRows: [
-        {
-          id: 1,
-          vendor: "CU BOOK",
-          price: "150 บาท",
-          delivery: "2-3 วัน",
-          publisher: "Regular text column",
-          aiDecision: "the-best",
-          aiReason: "เนื่องจากมีความคุ้มค่า",
-        },
-        {
-          id: 2,
-          vendor: "Asia Books",
-          price: "170 บาท",
-          delivery: "4-5 วัน",
-          publisher: "Regular text column",
-          aiDecision: "optional",
-          aiReason: "Regular text column",
-        },
-        {
-          id: 3,
-          vendor: "นายอินทร์",
-          price: "160 บาท",
-          delivery: "2-3 วัน",
-          publisher: "Regular text column",
-          aiDecision: "optional",
-          aiReason: "Regular text column",
-        },
-        {
-          id: 4,
-          vendor: "SE-ED Book",
-          price: "170 บาท",
-          delivery: "4-5 วัน",
-          publisher: "Regular text column",
-          aiDecision: "optional",
-          aiReason: "Regular text column",
-        },
-        {
-          id: 5,
-          vendor: "Kinokuniya",
-          price: "180 บาท",
-          delivery: "4-5 วัน",
-          publisher: "Regular text column",
-          aiDecision: "optional",
-          aiReason: "Regular text column",
-        },
-      ],
-    },
-  })
-
-  return [
-    buildRow(1, "120 บาท", "150 บาท", "120 บาท", "complete", "CU BOOK"),
-    buildRow(2, "170 บาท", "170 บาท", "170 บาท", "complete", "นายอินทร์"),
-    buildRow(3, "Regular text column", "Regular text column", "Regular text column", "complete", "Asia Book"),
-    buildRow(4, "Regular text column", "Regular text column", "Regular text column", "complete", "CU BOOK"),
-    buildRow(5, "Regular text column", "Regular text column", "Regular text column", "complete", "SE-ED Book"),
-    buildRow(6, "Regular text column", "Regular text column", "Regular text column", "processing", "ยังไม่ได้เลือก"),
-    buildRow(7, "Regular text column", "Regular text column", "Regular text column", "processing", "ยังไม่ได้เลือก"),
-    buildRow(8, "Regular text column", "Regular text column", "Regular text column", "processing", "ยังไม่ได้เลือก"),
-    buildRow(9, "Regular text column", "Regular text column", "Regular text column", "processing", "ยังไม่ได้เลือก"),
-    buildRow(10, "Regular text column", "Regular text column", "Regular text column", "processing", "ยังไม่ได้เลือก"),
-    buildRow(11, "Regular text column", "Regular text column", "Regular text column", "processing", "ยังไม่ได้เลือก"),
-    buildRow(12, "Regular text column", "Regular text column", "Regular text column", "rejected", "ยังไม่ได้เลือก"),
-    buildRow(13, "Regular text column", "Regular text column", "Regular text column", "rejected", "ยังไม่ได้เลือก"),
-    buildRow(14, "Regular text column", "Regular text column", "Regular text column", "rejected", "ยังไม่ได้เลือก"),
-  ]
-}
-
 export default function QuoteComparisonPage() {
-  const [data, setData] = useState<QuoteComparison[]>(getData)
+  const [data, setData] = useState<QuoteComparison[]>([])
   const [isUploadPopupOpen, setIsUploadPopupOpen] = useState(false)
   const [selectedAIQuote, setSelectedAIQuote] = useState<QuoteComparison | null>(null)
-  const columns = getColumns((row) => setSelectedAIQuote(row))
+  const [vendorNames, setVendorNames] = useState<string[]>([])
+  const { showToast } = useToast()
+  const columns = getColumns((row) => setSelectedAIQuote(row), vendorNames)
 
-  const handleSaveSelection = (quoteId: number, vendor: string) => {
-    setData((previous) =>
-      previous.map((item) => {
-        if (item.id !== quoteId) {
-          return item
-        }
+  useEffect(() => {
+    const fetchVendorQuotes = async () => {
+      try {
+        const response = await fetch('/api/get-vendor-quote')
+        const result = await response.json()
+        console.log('Vendor Quotes:', result.data)
+        
+        // Extract unique vendor names
+        const uniqueVendors = Array.from(
+          new Set(result.data.map((item: any) => item.vendor_name).filter(Boolean))
+        ) as string[]
+        console.log('Unique Vendor Names:', uniqueVendors)
+        setVendorNames(uniqueVendors)
 
-        return {
-          ...item,
-          librarianSelection: vendor,
-          aiSelectionDetail: {
-            ...item.aiSelectionDetail,
-            selectedVendor: vendor,
+        // Group data by evaluation_id
+        const groupedByEvaluation = result.data.reduce((acc: any, item: any) => {
+          const evalId = item.evaluation_id
+          if (!acc[evalId]) {
+            acc[evalId] = []
+          }
+          acc[evalId].push(item)
+          return acc
+        }, {})
+
+        // Transform to QuoteComparison format
+        const transformedData: QuoteComparison[] = Object.entries(groupedByEvaluation).map(
+          ([evalId, items]: [string, any]) => {
+            const firstItem = items[0]
+            
+            // Create vendors object with prices
+            const vendors: Record<string, string> = {}
+            uniqueVendors.forEach((vendorName) => {
+              const vendorItem = items.find((i: any) => i.vendor_name === vendorName)
+              if (vendorItem && vendorItem.net_price) {
+                vendors[vendorName] = `${parseFloat(vendorItem.net_price).toFixed(2)} บาท`
+              } else {
+                vendors[vendorName] = "-"
+              }
+            })
+
+            // Group items by vendor_name to collect all quote_ids for duplicates
+            const vendorGroups = items.reduce((acc: any, item: any) => {
+              const key = `${item.vendor_name}-${item.net_price}`
+              if (!acc[key]) {
+                acc[key] = {
+                  ...item,
+                  quoteIds: [item.quote_id]
+                }
+              } else {
+                acc[key].quoteIds.push(item.quote_id)
+              }
+              return acc
+            }, {})
+
+            const uniqueItems = Object.values(vendorGroups)
+
+            // Find approved vendor for librarian selection
+            const approvedVendor = uniqueItems.find((item: any) => item.review_status === 'APPROVE_REVIEW') as any
+            const librarianSelection = approvedVendor ? approvedVendor.vendor_name : "ยังไม่ได้เลือก"
+
+            return {
+              id: parseInt(evalId),
+              title: firstItem.title || "N/A",
+              author: firstItem.authors || "N/A",
+              vendors,
+              aiStatus: "processing" as const,
+              librarianSelection,
+              aiSelectionDetail: {
+                quoteId: parseInt(evalId),
+                title: firstItem.title || "N/A",
+                selectedVendor: approvedVendor ? approvedVendor.vendor_name : null,
+                comparisonRows: uniqueItems.map((item: any, index: number) => ({
+                  id: index + 1,
+                  quoteId: item.quote_id,
+                  quoteIds: item.quoteIds || [item.quote_id],  // All quote IDs for this vendor
+                  vendor: item.vendor_name || "N/A",
+                  price: item.net_price ? `${parseFloat(item.net_price).toFixed(2)} บาท` : "-",
+                  delivery: item.estimated_delivery_day || "N/A",
+                  publisher: "N/A",
+                  aiDecision: item.is_best_option ? "the-best" : "optional",
+                  aiReason: item.is_best_option ? "คัดเลือกโดย AI" : "ตัวเลือกอื่น",
+                  reviewStatus: item.review_status,
+                })),
+              },
+            }
+          }
+        )
+
+        console.log('Transformed Data:', transformedData)
+        setData(transformedData)
+      } catch (error) {
+        console.error('Error fetching vendor quotes:', error)
+      }
+    }
+
+    fetchVendorQuotes()
+  }, [])
+
+  const handleSaveSelection = async (quoteId: number, vendor: string) => {
+    try {
+      const allRows = selectedAIQuote?.aiSelectionDetail.comparisonRows || []
+      
+      // Find the selected vendor row with all quote IDs
+      const selectedRow = allRows.find((row) => row.vendor === vendor)
+      const selectedQuoteIds = selectedRow?.quoteIds || []
+
+      // Find all other vendor rows (not selected)
+      const otherRows = allRows.filter((row) => row.vendor !== vendor)
+      const otherQuoteIds = otherRows.flatMap((row) => row.quoteIds || [])
+
+      // Update selected vendor to APPROVE_REVIEW
+      if (selectedQuoteIds.length > 0) {
+        const approveResponse = await fetch('/api/update-quote-comparison-review-status', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
           },
+          body: JSON.stringify({
+            quoteIds: selectedQuoteIds,
+            reviewStatus: 'APPROVE_REVIEW',
+          }),
+        })
+
+        if (!approveResponse.ok) {
+          throw new Error('Failed to approve selected vendor')
         }
-      })
-    )
-    setSelectedAIQuote(null)
+
+        console.log(`Approved ${selectedQuoteIds.length} quote(s) for vendor: ${vendor}`)
+      }
+
+      // Update other vendors to PENDING_REVIEW
+      if (otherQuoteIds.length > 0) {
+        const pendingResponse = await fetch('/api/update-quote-comparison-review-status', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            quoteIds: otherQuoteIds,
+            reviewStatus: 'PENDING_REVIEW',
+          }),
+        })
+
+        if (!pendingResponse.ok) {
+          throw new Error('Failed to set other vendors to pending')
+        }
+
+        console.log(`Set ${otherQuoteIds.length} quote(s) to PENDING_REVIEW for other vendors`)
+      }
+
+      // Update local state
+      setData((previous) =>
+        previous.map((item) => {
+          if (item.id !== quoteId) {
+            return item
+          }
+
+          return {
+            ...item,
+            librarianSelection: vendor,
+            aiSelectionDetail: {
+              ...item.aiSelectionDetail,
+              selectedVendor: vendor,
+            },
+          }
+        })
+      )
+      setSelectedAIQuote(null)
+      
+      // Show success toast
+      showToast(`บันทึกการเลือกร้านค้า "${vendor}" สำเร็จ`, 'success')
+    } catch (error) {
+      console.error('Error saving selection:', error)
+      showToast('เกิดข้อผิดพลาดในการบันทึก กรุณาลองใหม่อีกครั้ง', 'error')
+    }
   }
 
   const handleUploadFiles = (files: File[]) => {

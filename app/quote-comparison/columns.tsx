@@ -8,9 +8,7 @@ export type QuoteComparison = {
   id: number
   title: string
   author: string
-  cuBook: string
-  vendorA: string
-  vendorB: string
+  vendors: Record<string, string>
   aiStatus: "complete" | "processing" | "rejected"
   librarianSelection: string
   aiSelectionDetail: AISelectionPopupData
@@ -44,11 +42,14 @@ const AIStatusBadge = ({ status }: { status: QuoteComparison["aiStatus"] }) => {
 }
 
 export const getColumns = (
-  onOpenAISelection?: (row: QuoteComparison) => void
+  onOpenAISelection?: (row: QuoteComparison) => void,
+  vendorNames: string[] = []
 ): ColumnDef<QuoteComparison>[] => [
   {
     accessorKey: "id",
     header: "No.",
+    size: 40,
+    maxSize: 50,
     cell: ({ row }) => <div className="text-sm">{row.getValue("id")}</div>,
   },
   {
@@ -59,7 +60,9 @@ export const getColumns = (
         <ArrowDown className="h-3.5 w-3.5 text-slate-500" />
       </div>
     ),
-    cell: ({ row }) => <div className="font-bold text-sm">{row.getValue("title")}</div>,
+    size: 180,
+    maxSize: 200,
+    cell: ({ row }) => <div className="font-bold text-sm truncate">{row.getValue("title")}</div>,
   },
   {
     accessorKey: "author",
@@ -69,38 +72,26 @@ export const getColumns = (
         <ArrowDown className="h-3.5 w-3.5 text-slate-500" />
       </div>
     ),
-    cell: ({ row }) => <div className="text-sm text-gray-600">{row.getValue("author")}</div>,
+    size: 120,
+    maxSize: 150,
+    cell: ({ row }) => <div className="text-sm text-gray-600 truncate">{row.getValue("author")}</div>,
   },
-  {
-    accessorKey: "cuBook",
+  ...vendorNames.map((vendorName) => ({
+    id: `vendor_${vendorName}`,
+    accessorFn: (row: QuoteComparison) => row.vendors[vendorName] || "-",
+    size: 100,
+    maxSize: 120,
     header: () => (
       <div className="flex items-center gap-1">
-        <span>CU Book</span>
+        <span className="truncate" title={vendorName}>{vendorName}</span>
         <ArrowDown className="h-3.5 w-3.5 text-slate-500" />
       </div>
     ),
-    cell: ({ row }) => <div className="text-sm text-gray-600">{row.getValue("cuBook")}</div>,
-  },
-  {
-    accessorKey: "vendorA",
-    header: () => (
-      <div className="flex items-center gap-1">
-        <span>นายอินทร์</span>
-        <ArrowDown className="h-3.5 w-3.5 text-slate-500" />
-      </div>
-    ),
-    cell: ({ row }) => <div className="text-sm text-gray-600">{row.getValue("vendorA")}</div>,
-  },
-  {
-    accessorKey: "vendorB",
-    header: () => (
-      <div className="flex items-center gap-1">
-        <span>นายอินทร์</span>
-        <ArrowDown className="h-3.5 w-3.5 text-slate-500" />
-      </div>
-    ),
-    cell: ({ row }) => <div className="text-sm text-gray-600">{row.getValue("vendorB")}</div>,
-  },
+    cell: ({ row }: { row: any }) => {
+      const value = row.original.vendors[vendorName] || "-"
+      return <div className="text-sm text-gray-600 truncate">{value}</div>
+    },
+  })),
   {
     accessorKey: "aiStatus",
     header: () => (
@@ -109,6 +100,8 @@ export const getColumns = (
         <ArrowDown className="h-3.5 w-3.5 text-slate-500" />
       </div>
     ),
+    size: 100,
+    maxSize: 120,
     cell: ({ row }) => {
       const status = row.getValue("aiStatus") as QuoteComparison["aiStatus"]
       return <AIStatusBadge status={status} />
@@ -118,19 +111,30 @@ export const getColumns = (
     accessorKey: "librarianSelection",
     header: () => (
       <div className="flex items-center gap-1">
-        <span>บรรณารักษ์เลือก</span>
+        <span className="whitespace-nowrap">บรรณารักษ์เลือก</span>
         <ArrowDown className="h-3.5 w-3.5 text-slate-500" />
       </div>
     ),
+    size: 120,
+    maxSize: 150,
     cell: ({ row }) => {
       const value = row.getValue("librarianSelection") as string
       const isPending = value === "ยังไม่ได้เลือก"
-      return <span className={`text-sm ${isPending ? "text-gray-400" : "text-blue-600"}`}>{value}</span>
+      return (
+        <div
+          className={`block w-full overflow-hidden text-ellipsis whitespace-nowrap text-sm ${isPending ? "text-gray-400" : "text-blue-600"}`}
+          title={value}
+        >
+          {value}
+        </div>
+      )
     },
   },
   {
     id: "details",
     header: "",
+    size: 50,
+    maxSize: 60,
     cell: ({ row }) => {
       const quote = row.original
       return (

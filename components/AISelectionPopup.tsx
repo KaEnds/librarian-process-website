@@ -9,12 +9,15 @@ export type AISelectionDecision = "the-best" | "optional"
 
 export type AISelectionVendorComparison = {
   id: number
+  quoteId: number
+  quoteIds: number[]  // All quote IDs for this vendor (for duplicates)
   vendor: string
   price: string
   delivery: string
   publisher: string
   aiDecision: AISelectionDecision
   aiReason: string
+  reviewStatus?: string
 }
 
 export type AISelectionPopupData = {
@@ -67,7 +70,7 @@ export function AISelectionPopup({ open, data, onClose, onSave }: AISelectionPop
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div
-        className="w-full max-w-5xl overflow-hidden rounded-md border border-border bg-background"
+        className="w-full max-w-screen-2xl overflow-hidden rounded-md border border-border bg-background"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border bg-background px-5 py-3">
@@ -77,12 +80,12 @@ export function AISelectionPopup({ open, data, onClose, onSave }: AISelectionPop
           </button>
         </div>
 
-        <div className="max-h-[62vh] overflow-y-auto bg-muted/30">
-          <table className="w-full bg-background text-sm">
+        <div className="max-h-[80vh] overflow-y-auto bg-muted/30">
+          <table className="w-full table-fixed bg-background text-sm">
             <thead className="border-b border-border bg-muted/20 text-left text-muted-foreground">
               <tr>
-                <th className="px-4 py-3 font-medium">No.</th>
-                <th className="px-4 py-3 font-medium">
+                <th className="w-16 px-4 py-3 font-medium">No.</th>
+                <th className="w-[24%] px-4 py-3 font-medium">
                   <div className="flex items-center gap-1">
                     Vendor
                     <ArrowDown className="h-3.5 w-3.5" />
@@ -113,13 +116,14 @@ export function AISelectionPopup({ open, data, onClose, onSave }: AISelectionPop
                     <ArrowDown className="h-3.5 w-3.5" />
                   </div>
                 </th>
+                <th className="w-32 px-4 py-3 text-center font-medium whitespace-nowrap">บรรณารักษ์เลือก</th>
               </tr>
             </thead>
             <tbody>
               {data.comparisonRows.map((row) => (
                 <tr key={row.id} className="border-b border-border last:border-b-0">
                   <td className="px-4 py-3 text-gray-600">{row.id}</td>
-                  <td className="px-4 py-3 font-semibold">{row.vendor}</td>
+                  <td className="px-4 py-3 font-semibold truncate" title={row.vendor}>{row.vendor}</td>
                   <td className="px-4 py-3 text-gray-600">{row.price}</td>
                   <td className="px-4 py-3 text-gray-600">{row.delivery}</td>
                   <td className="px-4 py-3 text-gray-600">{row.publisher}</td>
@@ -127,53 +131,21 @@ export function AISelectionPopup({ open, data, onClose, onSave }: AISelectionPop
                     <DecisionBadge decision={row.aiDecision} />
                   </td>
                   <td className="px-4 py-3 text-gray-600">{row.aiReason}</td>
+                  <td className="px-4 py-3 text-center">
+                    <Checkbox
+                      checked={selectedVendor === row.vendor}
+                      onCheckedChange={(value) => {
+                        if (value) {
+                          setSelectedVendor(row.vendor)
+                        }
+                      }}
+                      aria-label={`Select ${row.vendor}`}
+                    />
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
-
-          <div className="border-t border-border bg-muted/20 px-4 py-3 text-sm font-semibold">เลือกใบเสนอราคารายงบ (บรรณารักษ์)</div>
-
-          <div className="relative max-h-56 overflow-y-auto">
-            <table className="w-full bg-background text-sm">
-              <thead className="sticky top-0 z-30 border-b border-border bg-muted/20 text-left text-muted-foreground">
-                <tr>
-                  <th className="bg-muted/20 px-4 py-3 font-medium">No.</th>
-                  <th className="bg-muted/20 px-4 py-3 font-medium">
-                    <div className="flex items-center gap-1">
-                      Vendor
-                      <ArrowDown className="h-3.5 w-3.5" />
-                    </div>
-                  </th>
-                  <th className="bg-muted/20 px-4 py-3 text-right font-medium">
-                    <div className="inline-flex items-center gap-1">
-                      เลือกร้านค้าเอง
-                      <ArrowDown className="h-3.5 w-3.5" />
-                    </div>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.comparisonRows.map((row) => (
-                  <tr key={`choose-${row.id}`} className="border-b border-border last:border-b-0">
-                    <td className="px-4 py-3 text-gray-600">{row.id}</td>
-                    <td className="px-4 py-3 font-semibold">{row.vendor}</td>
-                    <td className="px-4 py-3 text-right">
-                      <Checkbox
-                        checked={selectedVendor === row.vendor}
-                        onCheckedChange={(value) => {
-                          if (value) {
-                            setSelectedVendor(row.vendor)
-                          }
-                        }}
-                        aria-label={`Select ${row.vendor}`}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         </div>
 
         <div className="flex items-center justify-center gap-4 border-t border-border bg-background px-5 py-3">

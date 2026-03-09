@@ -28,6 +28,7 @@ export type RequesterInfo = {
 }
 
 export type RequestDetails = {
+  requestId?: number
   title: string | null
   author: string | null
   isbn: string | null
@@ -68,7 +69,9 @@ export function RequestDetailsPopup({ open, data, onClose }: RequestDetailsPopup
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border bg-background px-5 py-3">
-          <h2 className="text-base font-semibold">รายละเอียดคำร้องขอจัดซื้อ</h2>
+          <h2 className="text-base font-semibold">
+            รายละเอียดคำร้องขอจัดซื้อ{data.requestId ? ` #${data.requestId}` : ''}
+          </h2>
           <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
             <X className="h-5 w-5" />
           </button>

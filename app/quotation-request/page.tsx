@@ -222,7 +222,7 @@ export default function QuoteRequestPage() {
   }
 
   const handleExport = () => {
-    exportRequestsToExcel(filteredData, "คำร้องขอจัดซื้อคัดแล้ว")
+    exportRequestsToExcel(filteredData, "คำร้องขอจัดซื้อตัดแล้ว")
   }
 
   const handleReturnSelection = async () => {
@@ -435,7 +435,7 @@ export default function QuoteRequestPage() {
           </Button>
           <Button
             className={`text-white ${
-              isToggleCompletionDisabled
+              isReturnSelectionDisabled
                 ? "bg-gray-400 cursor-not-allowed"
                 : "bg-blue-600 hover:bg-blue-700"
             }`}
@@ -443,7 +443,7 @@ export default function QuoteRequestPage() {
             disabled={isToggleCompletionDisabled}
           >
             <Check className="w-4 h-4 mr-2" />
-            {processStatus === "DONE" ? "ยกเลิกเสร็จสิ้น" : "เสร็จสิ้น"}
+            {processStatus === "DONE" ? "ได้รับใบเสนอราคาแล้ว" : "ได้รับใบเสนอราคาแล้ว"}
           </Button>
         </div>
       </div>

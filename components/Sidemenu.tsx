@@ -162,6 +162,16 @@ function Sidemenu() {
               Vendor
             </Link>
           </div>
+
+          <div className="mb-3">
+            <Link
+              href="/policies"
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition ${isActive("/policies") ? "bg-slate-800 text-white" : "text-slate-200 hover:bg-slate-800"}`}
+            >
+              <Book className="w-5 h-5" />
+              Policies
+            </Link>
+          </div>
         </div>
 
         {/* ข้อมูลย้อนหลัง Section */}

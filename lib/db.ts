@@ -272,3 +272,76 @@ export const getAllProcessStates = async (): Promise<any[]> => {
     throw error;
   }
 }
+
+export const getAllVendorQuotes = async (): Promise<any[]> => {
+  try {
+    const client = await pool.connect();
+
+    const query = `
+      SELECT * FROM librairy.vendor_quotes
+      ORDER BY evaluation_id ASC
+    `;
+
+    const result: QueryResult<any> = await client.query(query);
+    client.release();
+
+    return result.rows;
+  } catch (error: any) {
+    console.error('Error fetching all vendor quotes:', error.message);
+    throw error;
+  }
+}
+
+export type ReviewStatus = 'PENDING_REVIEW' | 'APPROVE_REVIEW' | 'REJECT_REVIEW';
+
+export const updateVendorQuoteReviewStatus = async (
+  quoteId: number,
+  reviewStatus: ReviewStatus
+): Promise<any> => {
+  try {
+    const client = await pool.connect();
+
+    const query = `
+      UPDATE librairy.vendor_quotes
+      SET review_status = $1
+      WHERE quote_id = $2
+      RETURNING *
+    `;
+
+    const result: QueryResult<any> = await client.query(query, [reviewStatus, quoteId]);
+    client.release();
+
+    if (result.rows.length === 0) {
+      throw new Error(`Quote with ID ${quoteId} not found`);
+    }
+
+    return result.rows[0];
+  } catch (error: any) {
+    console.error('Error updating vendor quote review status:', error.message);
+    throw error;
+  }
+}
+
+export const updateMultipleVendorQuoteReviewStatus = async (
+  quoteIds: number[],
+  reviewStatus: ReviewStatus
+): Promise<any[]> => {
+  try {
+    const client = await pool.connect();
+
+    const query = `
+      UPDATE librairy.vendor_quotes
+      SET review_status = $1
+      WHERE quote_id = ANY($2)
+      RETURNING *
+    `;
+
+    const result: QueryResult<any> = await client.query(query, [reviewStatus, quoteIds]);
+    client.release();
+
+    return result.rows;
+  } catch (error: any) {
+    console.error('Error updating multiple vendor quote review statuses:', error.message);
+    throw error;
+  }
+}
