@@ -142,12 +142,15 @@ function Sidemenu() {
                     <span className="w-2 h-2 bg-red-500 rounded-full"></span>
                   )}
                 </Link>
-                <button className="w-full flex items-center justify-between text-left px-3 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-800 rounded transition">
+                <Link
+                  href="/approve"
+                  className={`flex items-center justify-between w-full text-left px-3 py-2 text-xs rounded transition ${isActive("/approve") ? "bg-slate-800 text-white" : "text-slate-300 hover:text-white hover:bg-slate-800"}`}
+                >
                   <span>อนุมัติการจัดซื้อ</span>
                   {isProcessActive(4) && (
                     <span className="w-2 h-2 bg-red-500 rounded-full"></span>
                   )}
-                </button>
+                </Link>
               </div>
             )}
           </div>

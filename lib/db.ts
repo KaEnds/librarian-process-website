@@ -278,8 +278,23 @@ export const getAllVendorQuotes = async (): Promise<any[]> => {
     const client = await pool.connect();
 
     const query = `
-      SELECT * FROM librairy.vendor_quotes
-      ORDER BY evaluation_id ASC
+      SELECT 
+        vq.*,
+        pe.net_score, 
+        pe.passed_selection,
+        ad.*,
+        b.batch_id,
+        b.status AS batch_status,
+        b.batch_start_date,
+        b.batch_end_date
+      FROM librairy.vendor_quotes vq
+      LEFT JOIN librairy.policy_evaluations pe 
+        ON vq.evaluation_id = pe.evaluation_id
+      LEFT JOIN librairy.acquisition_decisions ad 
+        ON pe.evaluation_id = ad.evaluation_id
+      LEFT JOIN librairy.batches b 
+        ON pe.batch_id = b.batch_id
+      ORDER BY pe.evaluation_id
     `;
 
     const result: QueryResult<any> = await client.query(query);
