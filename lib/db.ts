@@ -278,7 +278,7 @@ export const getAllVendorQuotes = async (): Promise<any[]> => {
     const client = await pool.connect();
 
     const query = `
-      SELECT 
+      SELECT DISTINCT ON (vq.quote_id)
         vq.*,
         pe.net_score, 
         pe.passed_selection,
@@ -294,7 +294,7 @@ export const getAllVendorQuotes = async (): Promise<any[]> => {
         ON pe.evaluation_id = ad.evaluation_id
       LEFT JOIN librairy.batches b 
         ON pe.batch_id = b.batch_id
-      ORDER BY pe.evaluation_id
+      ORDER BY vq.quote_id
     `;
 
     const result: QueryResult<any> = await client.query(query);
@@ -357,6 +357,35 @@ export const updateMultipleVendorQuoteReviewStatus = async (
     return result.rows;
   } catch (error: any) {
     console.error('Error updating multiple vendor quote review statuses:', error.message);
+    throw error;
+  }
+}
+
+export const updateVendorQuoteNetPriceByEvaluationAndVendor = async (
+  evaluationId: number,
+  vendorName: string,
+  netPrice: number,
+): Promise<any[]> => {
+  try {
+    const client = await pool.connect();
+
+    const query = `
+      UPDATE librairy.vendor_quotes
+      SET net_price = $1
+      WHERE evaluation_id = $2 AND vendor_name = $3
+      RETURNING *
+    `;
+
+    const result: QueryResult<any> = await client.query(query, [netPrice, evaluationId, vendorName]);
+    client.release();
+
+    if (result.rows.length === 0) {
+      throw new Error(`Vendor quote not found for evaluation_id ${evaluationId} and vendor_name ${vendorName}`);
+    }
+
+    return result.rows;
+  } catch (error: any) {
+    console.error('Error updating vendor quote net_price:', error.message);
     throw error;
   }
 }

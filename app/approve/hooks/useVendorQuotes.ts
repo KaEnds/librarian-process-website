@@ -47,8 +47,18 @@ export const useVendorQuotes = (options: UseVendorQuotesOptions = {}) => {
       }
 
       const result = await response.json()
-      const transformedData: VendorQuoteItem[] = result.data.map((item: any, index: number) => ({
-        id: index,
+      const uniqueItems = (result.data as any[]).filter(
+        (item, index, self) => index === self.findIndex((t) => t.quote_id === item.quote_id)
+      )
+      const approvedItems = uniqueItems.filter(
+        (item) => item.review_status === "APPROVE_REVIEW"
+      )
+      const uniqueEvaluationItems = approvedItems.filter(
+        (item, index, self) =>
+          index === self.findIndex((candidate) => candidate.evaluation_id === item.evaluation_id)
+      )
+      const transformedData: VendorQuoteItem[] = uniqueEvaluationItems.map((item: any) => ({
+        id: item.quote_id || 0,
         quote_id: item.quote_id || 0,
         evaluation_id: item.evaluation_id || 0,
         title: item.title || "",

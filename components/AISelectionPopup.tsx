@@ -12,9 +12,11 @@ export type AISelectionVendorComparison = {
   quoteId: number
   quoteIds: number[]  // All quote IDs for this vendor (for duplicates)
   vendor: string
-  price: string
+  unitPrice: string
+  discountValue: string
+  netPrice: string
+  quantity: string
   delivery: string
-  publisher: string
   aiDecision: AISelectionDecision
   aiReason: string
   reviewStatus?: string
@@ -32,6 +34,7 @@ type AISelectionPopupProps = {
   data: AISelectionPopupData | null
   onClose: () => void
   onSave: (quoteId: number, vendor: string) => void
+  isReadOnly?: boolean
 }
 
 const DecisionBadge = ({ decision }: { decision: AISelectionDecision }) => {
@@ -52,7 +55,33 @@ const DecisionBadge = ({ decision }: { decision: AISelectionDecision }) => {
   )
 }
 
-export function AISelectionPopup({ open, data, onClose, onSave }: AISelectionPopupProps) {
+const parseAmount = (value: string): number | null => {
+  const sanitized = value.replace(/[^\d.]/g, "")
+  if (!sanitized) return null
+  const parsed = Number.parseFloat(sanitized)
+  return Number.isNaN(parsed) ? null : parsed
+}
+
+const formatAmount = (value: number): string => `${value.toFixed(2)} บาท`
+
+const getDisplayNetPrice = (row: AISelectionVendorComparison): string => {
+  const unit = parseAmount(row.unitPrice)
+  const discount = parseAmount(row.discountValue)
+  const net = parseAmount(row.netPrice)
+
+  if (unit === null) return row.netPrice
+  if (discount === null || discount <= 0) return row.netPrice
+
+  // Fallback for data where net price was not reduced after discount.
+  if (net !== null && Math.abs(unit - net) < 0.0001) {
+    const adjusted = Math.max(unit - discount, 0)
+    return formatAmount(adjusted)
+  }
+
+  return row.netPrice
+}
+
+export function AISelectionPopup({ open, data, onClose, onSave, isReadOnly = false }: AISelectionPopupProps) {
   const [selectedVendor, setSelectedVendor] = useState<string | null>(null)
 
   useEffect(() => {
@@ -93,19 +122,31 @@ export function AISelectionPopup({ open, data, onClose, onSave }: AISelectionPop
                 </th>
                 <th className="px-4 py-3 font-medium">
                   <div className="flex items-center gap-1">
-                    Price
+                    Unit Price
+                    <ArrowDown className="h-3.5 w-3.5" />
+                  </div>
+                </th>
+                <th className="px-4 py-3 font-medium">
+                  <div className="flex items-center gap-1">
+                    Discount
+                    <ArrowDown className="h-3.5 w-3.5" />
+                  </div>
+                </th>
+                <th className="px-4 py-3 font-medium">
+                  <div className="flex items-center gap-1">
+                    Net Price
+                    <ArrowDown className="h-3.5 w-3.5" />
+                  </div>
+                </th>
+                <th className="px-4 py-3 font-medium">
+                  <div className="flex items-center gap-1">
+                    Quantity
                     <ArrowDown className="h-3.5 w-3.5" />
                   </div>
                 </th>
                 <th className="px-4 py-3 font-medium">
                   <div className="flex items-center gap-1">
                     ระยะเวลาจัดส่ง
-                    <ArrowDown className="h-3.5 w-3.5" />
-                  </div>
-                </th>
-                <th className="px-4 py-3 font-medium">
-                  <div className="flex items-center gap-1">
-                    Publisher
                     <ArrowDown className="h-3.5 w-3.5" />
                   </div>
                 </th>
@@ -124,9 +165,11 @@ export function AISelectionPopup({ open, data, onClose, onSave }: AISelectionPop
                 <tr key={row.id} className="border-b border-border last:border-b-0">
                   <td className="px-4 py-3 text-gray-600">{row.id}</td>
                   <td className="px-4 py-3 font-semibold truncate" title={row.vendor}>{row.vendor}</td>
-                  <td className="px-4 py-3 text-gray-600">{row.price}</td>
+                  <td className="px-4 py-3 text-gray-600">{row.unitPrice}</td>
+                  <td className="px-4 py-3 text-gray-600">{row.discountValue}</td>
+                  <td className="px-4 py-3 text-gray-600">{getDisplayNetPrice(row)}</td>
+                  <td className="px-4 py-3 text-gray-600">{row.quantity}</td>
                   <td className="px-4 py-3 text-gray-600">{row.delivery}</td>
-                  <td className="px-4 py-3 text-gray-600">{row.publisher}</td>
                   <td className="px-4 py-3">
                     <DecisionBadge decision={row.aiDecision} />
                   </td>
@@ -134,7 +177,11 @@ export function AISelectionPopup({ open, data, onClose, onSave }: AISelectionPop
                   <td className="px-4 py-3 text-center">
                     <Checkbox
                       checked={selectedVendor === row.vendor}
+                      disabled={isReadOnly}
                       onCheckedChange={(value) => {
+                        if (isReadOnly) {
+                          return
+                        }
                         if (value) {
                           setSelectedVendor(row.vendor)
                         }
@@ -152,7 +199,7 @@ export function AISelectionPopup({ open, data, onClose, onSave }: AISelectionPop
           <Button variant="ghost" onClick={onClose}>ยกเลิก</Button>
           <Button
             className="bg-blue-600 hover:bg-blue-700 text-white"
-            disabled={!selectedVendor}
+            disabled={isReadOnly || !selectedVendor}
             onClick={() => {
               if (!selectedVendor) {
                 return

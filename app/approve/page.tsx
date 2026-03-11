@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation"
 import { getColumns } from "./columns"
 import { DataTable } from "./data-table"
 import { Button } from "@/components/ui/button"
-import { Filter, Download, Send, X } from "lucide-react"
+import { Filter, Download, Send, RotateCcw } from "lucide-react"
 import { useToast } from "@/components/Toast"
 import { useVendorQuotes } from "./hooks/useVendorQuotes"
+import { updateMultipleProcessStates } from "@/utils/api"
 
 export default function ApprovePage() {
   const router = useRouter()
@@ -16,7 +17,6 @@ export default function ApprovePage() {
   // State management
   const [currentBatchDateText, setCurrentBatchDateText] = useState<string | null>(null)
   const [isFilterOpen, setIsFilterOpen] = useState(false)
-  const [selectedItem, setSelectedItem] = useState<any>(null)
   const [filters, setFilters] = useState({
     vendorStatus: [] as string[],
     approvalStatus: [] as string[],
@@ -71,7 +71,6 @@ export default function ApprovePage() {
     false,
     new Set(),
     undefined,
-    (item) => setSelectedItem(item)
   )
 
   // Filtered data
@@ -101,6 +100,8 @@ export default function ApprovePage() {
       })
     }
 
+    result.sort((a, b) => a.evaluation_id - b.evaluation_id)
+
     return result
   }, [data, filters])
 
@@ -114,7 +115,7 @@ export default function ApprovePage() {
 
   const totalPrice = useMemo(() => {
     const total = filteredData.reduce((sum, item) => {
-      const price = parseFloat(item.total_price.replace(/,/g, '')) || 0
+      const price = parseFloat(item.unit_price.replace(/,/g, '')) || 0
       return sum + price
     }, 0)
     
@@ -127,8 +128,33 @@ export default function ApprovePage() {
   }
 
   const handleViewApprovalDocument = () => {
-    // TODO: Implement view approval document functionality
-    showToast('กำลังพัฒนาฟังก์ชันนี้', 'info')
+    if (filteredData.length === 0) {
+      showToast('ไม่พบรายการสำหรับสร้างเอกสาร', 'info')
+      return
+    }
+
+    const payload = {
+      items: filteredData,
+      batchDateText: currentBatchDateText,
+      generatedAt: new Date().toISOString(),
+    }
+
+    sessionStorage.setItem('approve-document-payload', JSON.stringify(payload))
+    router.push('/approve/document')
+  }
+
+  const handleSelectAgain = async () => {
+    try {
+      await updateMultipleProcessStates([
+        { processId: 3, status: 'IN_PROGRESS' },
+        { processId: 4, status: 'PENDING' },
+      ])
+
+      router.push('/quote-comparison')
+    } catch (error) {
+      console.error('Error updating process states for reselection:', error)
+      showToast('เกิดข้อผิดพลาดในการเปลี่ยนสถานะ workflow', 'error')
+    }
   }
 
   return (
@@ -253,6 +279,15 @@ export default function ApprovePage() {
             Export
           </Button>
           
+          <Button
+            variant="outline"
+            className="bg-white"
+            onClick={handleSelectAgain}
+          >
+            <RotateCcw className="w-4 h-4 mr-2" />
+            เลือกอีกครั้ง
+          </Button>
+
           <Button 
             className="bg-blue-600 hover:bg-blue-700 text-white"
             onClick={handleViewApprovalDocument}
@@ -273,95 +308,29 @@ export default function ApprovePage() {
       {/* Bottom Bar */}
       <div className="fixed bottom-0 left-[calc(16rem+2rem)] right-8 bg-white border-t border-gray-200 shadow-lg rounded-t-lg">
         <div className="flex items-center justify-between px-8 py-4">
-          <div className="flex items-center gap-12">
-            <div className="flex flex-col">
+          <div className="flex flex-col">
               <span className="text-xs text-gray-500 font-medium uppercase">จำนวนทั้งสิ้น</span>
               <span className="text-lg font-bold text-blue-600 mt-1">{filteredData.length} รายการ</span>
             </div>
-            <div className="flex flex-col">
+          <div className="flex items-center gap-8">
+            <div className="flex flex-col text-right">
               <span className="text-xs text-gray-500 font-medium uppercase">เป็นเงินทั้งหมด</span>
-              <div className="flex items-baseline mt-1">
+              <div className="flex items-baseline mt-1 justify-end">
                 <span className="text-2xl font-bold text-blue-600">{totalPrice}</span>
                 <span className="text-sm text-gray-600 ml-2">บาท</span>
               </div>
             </div>
+            <Button 
+              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2 text-base h-auto"
+            >
+              <Send className="w-5 h-5 mr-2" />
+              เพิ่มเอกสารอนุมัติ
+            </Button>
           </div>
-          <Button 
-            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2 text-base h-auto"
-          >
-            <Send className="w-5 h-5 mr-2" />
-            เพิ่มเอกสารอนุมัติ
-          </Button>
         </div>
       </div>
 
-      {/* Quote Details Popup */}
-      {selectedItem && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">รายละเอียดใบเสนอราคา</h2>
-              <button
-                onClick={() => setSelectedItem(null)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
 
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm text-gray-600">ชื่อหนังสือ</label>
-                  <p className="text-sm font-medium">{selectedItem.title || "-"}</p>
-                </div>
-                <div>
-                  <label className="text-sm text-gray-600">ร้านค้า</label>
-                  <p className="text-sm font-medium">{selectedItem.vendor_name || "-"}</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm text-gray-600">จำนวน</label>
-                  <p className="text-sm font-medium">{selectedItem.quantity || "-"}</p>
-                </div>
-                <div>
-                  <label className="text-sm text-gray-600">หน่วย</label>
-                  <p className="text-sm font-medium">{selectedItem.unit || "-"}</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm text-gray-600">ราคาต่อหน่วย</label>
-                  <p className="text-sm font-medium">{selectedItem.unit_price || "-"}</p>
-                </div>
-                <div>
-                  <label className="text-sm text-gray-600">ราคาสุทธิ</label>
-                  <p className="text-sm font-medium">{selectedItem.total_price || "-"}</p>
-                </div>
-              </div>
-
-              {selectedItem.net_score !== undefined && (
-                <div>
-                  <label className="text-sm text-gray-600">คะแนน</label>
-                  <p className="text-sm font-medium">{selectedItem.net_score || "-"}</p>
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-2 mt-6">
-              <Button
-                variant="outline"
-                onClick={() => setSelectedItem(null)}
-              >
-                ปิด
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

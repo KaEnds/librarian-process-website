@@ -2,7 +2,7 @@
 
 import { ColumnDef } from "@tanstack/react-table"
 import { ArrowDown, ExternalLink } from "lucide-react"
-import { AISelectionPopupData } from "@/components/AISelectionPopup"
+import { AISelectionPopupData, AISelectionVendorComparison } from "@/components/AISelectionPopup"
 
 export type QuoteComparison = {
   id: number
@@ -43,7 +43,11 @@ const AIStatusBadge = ({ status }: { status: QuoteComparison["aiStatus"] }) => {
 
 export const getColumns = (
   onOpenAISelection?: (row: QuoteComparison) => void,
-  vendorNames: string[] = []
+  vendorNames: string[] = [],
+  isEditMode: boolean = false,
+  onVendorPriceChange?: (itemId: number, vendorName: string, value: string) => void,
+  isVendorEditable?: (itemId: number, vendorName: string) => boolean,
+  isActionDisabled: boolean = false,
 ): ColumnDef<QuoteComparison>[] => [
   {
     accessorKey: "id",
@@ -89,6 +93,24 @@ export const getColumns = (
     ),
     cell: ({ row }: { row: any }) => {
       const value = row.original.vendors[vendorName] || "-"
+      const hasVendor = row.original.aiSelectionDetail.comparisonRows.some(
+        (comparisonRow: AISelectionVendorComparison) => comparisonRow.vendor === vendorName,
+      )
+      const canEdit = isVendorEditable ? isVendorEditable(row.original.id, vendorName) : hasVendor
+
+      if (isEditMode) {
+        return (
+          <input
+            type="text"
+            value={value === "-" ? "" : value}
+            disabled={!canEdit}
+            onChange={(event) => onVendorPriceChange?.(row.original.id, vendorName, event.target.value)}
+            placeholder={canEdit ? "ราคา" : "-"}
+            className="h-8 w-full rounded-md border border-gray-300 px-2 text-sm text-gray-700 outline-none focus:border-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+          />
+        )
+      }
+
       return <div className="text-sm text-gray-600 truncate">{value}</div>
     },
   })),
@@ -141,8 +163,9 @@ export const getColumns = (
         <div className="flex justify-end">
           <button
             type="button"
+            disabled={isActionDisabled}
             onClick={() => onOpenAISelection?.(quote)}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-gray-400 hover:bg-muted hover:text-foreground"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-gray-400 hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-gray-400"
             aria-label="View details"
           >
             <ExternalLink className="h-4.5 w-4.5" />

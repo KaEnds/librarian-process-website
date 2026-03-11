@@ -1,25 +1,95 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useRef, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import { getColumns, QuoteComparison } from "./columns"
 import { DataTable } from "./data-table"
 import { Button } from "@/components/ui/button"
 import { UploadQuotationPopup } from "@/components/UploadQuotationPopup"
 import { AISelectionPopup } from "@/components/AISelectionPopup"
 import { useToast } from "@/components/Toast"
-import { Filter, Upload, Send } from "lucide-react"
+import { updateMultipleProcessStates, updateVendorQuoteNetPrice } from "@/utils/api"
+import { Filter, Upload, Send, Pencil, Check, X } from "lucide-react"
 
 export default function QuoteComparisonPage() {
+  const router = useRouter()
   const [data, setData] = useState<QuoteComparison[]>([])
+  const [processStatus, setProcessStatus] = useState<string | null>(null)
+  const [draftData, setDraftData] = useState<QuoteComparison[] | null>(null)
+  const [editableVendorMap, setEditableVendorMap] = useState<Record<string, boolean>>({})
+  const [isEditMode, setIsEditMode] = useState(false)
   const [isUploadPopupOpen, setIsUploadPopupOpen] = useState(false)
   const [selectedAIQuote, setSelectedAIQuote] = useState<QuoteComparison | null>(null)
   const [vendorNames, setVendorNames] = useState<string[]>([])
+  const [isFilterOpen, setIsFilterOpen] = useState(false)
+  const [filters, setFilters] = useState({
+    vendorStatus: [] as string[],
+    selectionStatus: [] as string[],
+  })
+  const filterRef = useRef<HTMLDivElement>(null)
   const { showToast } = useToast()
-  const columns = getColumns((row) => setSelectedAIQuote(row), vendorNames)
+
+  const getEditableKey = (itemId: number, vendorName: string) => `${itemId}::${vendorName}`
+
+  const parseEditablePrice = (value: string): string => {
+    if (!value || value === "-") return ""
+    return value.replace(/[^\d.]/g, "")
+  }
+
+  const formatPriceValue = (value: string): string => {
+    const numberValue = Number.parseFloat(value)
+    if (Number.isNaN(numberValue)) return "-"
+    return `${numberValue.toFixed(2)} บาท`
+  }
+
+  const handleOpenAISelection = useCallback((row: QuoteComparison) => {
+    setSelectedAIQuote(row)
+  }, [])
+
+  const handleVendorPriceChange = useCallback((itemId: number, vendorName: string, value: string) => {
+    if (!editableVendorMap[getEditableKey(itemId, vendorName)]) {
+      return
+    }
+
+    const sanitized = value.replace(/[^\d.]/g, "")
+    setDraftData((previous) => {
+      if (!previous) return previous
+
+      return previous.map((item) => {
+        if (item.id !== itemId) return item
+
+        return {
+          ...item,
+          vendors: {
+            ...item.vendors,
+            [vendorName]: sanitized,
+          },
+        }
+      })
+    })
+  }, [editableVendorMap])
+
+  const columns = useMemo(
+    () => getColumns(
+      handleOpenAISelection,
+      vendorNames,
+      isEditMode,
+      handleVendorPriceChange,
+      (itemId, vendorName) => Boolean(editableVendorMap[getEditableKey(itemId, vendorName)]),
+      processStatus === "DONE" || processStatus === "PENDING",
+    ),
+    [handleOpenAISelection, vendorNames, isEditMode, handleVendorPriceChange, editableVendorMap, processStatus],
+  )
 
   useEffect(() => {
     const fetchVendorQuotes = async () => {
       try {
+        const processResponse = await fetch('/api/get-process-state?processId=3')
+        if (processResponse.ok) {
+          const processPayload = await processResponse.json()
+          setProcessStatus(processPayload?.status ?? null)
+        }
+
         const response = await fetch('/api/get-vendor-quote')
         const result = await response.json()
         console.log('Vendor Quotes:', result.data)
@@ -50,7 +120,7 @@ export default function QuoteComparisonPage() {
             const vendors: Record<string, string> = {}
             uniqueVendors.forEach((vendorName) => {
               const vendorItem = items.find((i: any) => i.vendor_name === vendorName)
-              if (vendorItem && vendorItem.net_price) {
+              if (vendorItem && vendorItem.unit_price) {
                 vendors[vendorName] = `${parseFloat(vendorItem.net_price).toFixed(2)} บาท`
               } else {
                 vendors[vendorName] = "-"
@@ -93,9 +163,11 @@ export default function QuoteComparisonPage() {
                   quoteId: item.quote_id,
                   quoteIds: item.quoteIds || [item.quote_id],  // All quote IDs for this vendor
                   vendor: item.vendor_name || "N/A",
-                  price: item.net_price ? `${parseFloat(item.net_price).toFixed(2)} บาท` : "-",
+                  unitPrice: item.unit_price ? `${parseFloat(item.unit_price).toFixed(2)} บาท` : "-",
+                  discountValue: item.discount_value ? `${parseFloat(item.discount_value).toFixed(2)}` : "-",
+                  netPrice: item.net_price ? `${parseFloat(item.net_price).toFixed(2)} บาท` : "-",
+                  quantity: item.quantity ? String(item.quantity) : "-",
                   delivery: item.estimated_delivery_day || "N/A",
-                  publisher: "N/A",
                   aiDecision: item.is_best_option ? "the-best" : "optional",
                   aiReason: item.is_best_option ? "คัดเลือกโดย AI" : "ตัวเลือกอื่น",
                   reviewStatus: item.review_status,
@@ -200,6 +272,189 @@ export default function QuoteComparisonPage() {
     // For example, refresh data, show toast notification, etc.
   }
 
+  const handleToggleFilter = (category: 'vendorStatus' | 'selectionStatus', value: string) => {
+    setFilters(prev => {
+      const current = prev[category]
+      const next = current.includes(value)
+        ? current.filter(f => f !== value)
+        : [...current, value]
+      return { ...prev, [category]: next }
+    })
+  }
+
+  const clearFilters = () => {
+    setFilters({ vendorStatus: [], selectionStatus: [] })
+  }
+
+  const handleCreateApprovalDocument = async () => {
+    try {
+      await updateMultipleProcessStates([
+        { processId: 3, status: "DONE" },
+        { processId: 4, status: "IN_PROGRESS" },
+      ])
+
+      router.push("/approve")
+    } catch (error) {
+      console.error("Error updating process states before navigation:", error)
+      showToast("เกิดข้อผิดพลาดในการเปลี่ยนสถานะ workflow", "error")
+    }
+  }
+
+  const handleStartEdit = () => {
+    const nextEditableMap: Record<string, boolean> = {}
+
+    setDraftData(
+      data.map((item) => ({
+        ...item,
+        vendors: Object.fromEntries(
+          Object.entries(item.vendors).map(([vendorName, vendorPrice]) => {
+            nextEditableMap[getEditableKey(item.id, vendorName)] = vendorPrice !== "-"
+            return [vendorName, parseEditablePrice(vendorPrice)]
+          }),
+        ),
+      })),
+    )
+    setEditableVendorMap(nextEditableMap)
+    setIsEditMode(true)
+  }
+
+  const handleCancelEdit = () => {
+    setDraftData(null)
+    setEditableVendorMap({})
+    setIsEditMode(false)
+  }
+
+  const handleConfirmEdit = async () => {
+    if (!draftData) return
+
+    const hasInvalidValue = draftData.some((item) =>
+      Object.values(item.vendors).some((value) => {
+        if (value === "") return false
+        const parsed = Number.parseFloat(value)
+        return Number.isNaN(parsed)
+      }),
+    )
+
+    if (hasInvalidValue) {
+      showToast("พบราคาที่ไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง", "error")
+      return
+    }
+
+    const changedEntries = draftData.flatMap((draftItem) => {
+      const originalItem = data.find((item) => item.id === draftItem.id)
+      if (!originalItem) return [] as Array<{ evaluationId: number; vendorName: string; netPrice: number }>
+
+      return Object.entries(draftItem.vendors).flatMap(([vendorName, vendorPrice]) => {
+        const originalPrice = parseEditablePrice(originalItem.vendors[vendorName] || "")
+        const canEdit = editableVendorMap[getEditableKey(draftItem.id, vendorName)]
+
+        if (!canEdit || vendorPrice === "" || vendorPrice === originalPrice) {
+          return []
+        }
+
+        return [{
+          evaluationId: draftItem.id,
+          vendorName,
+          netPrice: Number.parseFloat(vendorPrice),
+        }]
+      })
+    })
+
+    try {
+      await Promise.all(
+        changedEntries.map(({ evaluationId, vendorName, netPrice }) =>
+          updateVendorQuoteNetPrice(evaluationId, vendorName, netPrice),
+        ),
+      )
+    } catch (error) {
+      console.error("Error updating vendor quote prices:", error)
+      showToast("เกิดข้อผิดพลาดในการบันทึกราคา กรุณาลองใหม่อีกครั้ง", "error")
+      return
+    }
+
+    const normalizedData = draftData.map((item) => {
+      const normalizedVendors = Object.fromEntries(
+        Object.entries(item.vendors).map(([vendorName, vendorPrice]) => [
+          vendorName,
+          vendorPrice === "" ? "-" : formatPriceValue(vendorPrice),
+        ]),
+      )
+
+      const normalizedRows = item.aiSelectionDetail.comparisonRows.map((comparisonRow) => {
+        const editablePrice = item.vendors[comparisonRow.vendor]
+        if (!editablePrice || editablePrice === "") {
+          return {
+            ...comparisonRow,
+            unitPrice: "-",
+          }
+        }
+
+        return {
+          ...comparisonRow,
+          unitPrice: formatPriceValue(editablePrice),
+        }
+      })
+
+      return {
+        ...item,
+        vendors: normalizedVendors,
+        aiSelectionDetail: {
+          ...item.aiSelectionDetail,
+          comparisonRows: normalizedRows,
+        },
+      }
+    })
+
+    setData(normalizedData)
+    setDraftData(null)
+    setEditableVendorMap({})
+    setIsEditMode(false)
+    showToast("ยืนยันการแก้ไขราคาเรียบร้อย", "success")
+  }
+
+  // Close filter dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
+        setIsFilterOpen(false)
+      }
+    }
+    if (isFilterOpen) {
+      document.addEventListener("mousedown", handleClickOutside)
+    }
+    return () => { document.removeEventListener("mousedown", handleClickOutside) }
+  }, [isFilterOpen])
+
+  const filteredData = useMemo(() => {
+    const sourceData = isEditMode && draftData ? draftData : data
+    let result = [...sourceData]
+
+    if (filters.vendorStatus.length > 0) {
+      result = result.filter(item =>
+        filters.vendorStatus.some(vendor =>
+          item.vendors[vendor] && item.vendors[vendor] !== "-"
+        )
+      )
+    }
+
+    if (filters.selectionStatus.length > 0) {
+      result = result.filter(item => {
+        const isSelected = item.librarianSelection !== "ยังไม่ได้เลือก"
+        if (filters.selectionStatus.includes("selected") && !isSelected) return false
+        if (filters.selectionStatus.includes("unselected") && isSelected) return false
+        return true
+      })
+    }
+
+    return result
+  }, [data, draftData, isEditMode, filters])
+
+  const activeFilterCount = useMemo(() => {
+    return filters.vendorStatus.length + filters.selectionStatus.length
+  }, [filters])
+
+  const isPageActionDisabled = processStatus === "DONE" || processStatus === "PENDING"
+
   return (
     <div className="w-full p-8 bg-gray-50 h-[calc(100vh-80px)]">
       <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
@@ -214,29 +469,131 @@ export default function QuoteComparisonPage() {
           <div className="flex items-baseline gap-2 mb-1">
             <h1 className="text-xl font-bold">เปรียบเทียบใบเสนอราคา</h1>
             <span className="text-blue-600 text-sm">
-              <span className="font-semibold">{data.length} รายการ</span>
+              <span className="font-semibold">
+                {filteredData.length !== data.length
+                  ? `${filteredData.length} / ${data.length} รายการ`
+                  : `${data.length} รายการ`}
+              </span>
             </span>
           </div>
           <p className="text-sm text-gray-600">ประจำวันที่ 7 ตุลาคม 2568 - 9 ตุลาคม 2568</p>
         </div>
 
         <div className="flex gap-3">
-          <Button variant="outline" className="bg-white">
-            <Filter className="w-4 h-4 mr-2" />
-            Filters
-          </Button>
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => setIsUploadPopupOpen(true)}>
+          {!isEditMode ? (
+            <Button variant="outline" className="bg-white" onClick={handleStartEdit} disabled={isPageActionDisabled}>
+              <Pencil className="w-4 h-4 mr-2" />
+              แก้ไขข้อมูล
+            </Button>
+          ) : (
+            <>
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={handleConfirmEdit} disabled={isPageActionDisabled}>
+                <Check className="w-4 h-4 mr-2" />
+                ยืนยันการแก้ไข
+              </Button>
+              <Button variant="outline" className="bg-white" onClick={handleCancelEdit} disabled={isPageActionDisabled}>
+                <X className="w-4 h-4 mr-2" />
+                ยกเลิก
+              </Button>
+            </>
+          )}
+
+          <div className="relative" ref={filterRef}>
+            <Button
+              variant="outline"
+              className={`bg-white ${isFilterOpen ? 'border-blue-500' : ''}`}
+              disabled={isPageActionDisabled}
+              onClick={() => setIsFilterOpen(!isFilterOpen)}
+            >
+              <Filter className="w-4 h-4 mr-2" />
+              Filters
+              {activeFilterCount > 0 && (
+                <span className="ml-2 bg-blue-600 text-white rounded-full px-2 py-0.5 text-xs">
+                  {activeFilterCount}
+                </span>
+              )}
+            </Button>
+
+            {isFilterOpen && (
+              <div className="absolute top-full mt-2 right-0 bg-white border border-gray-200 rounded-lg shadow-lg p-4 w-72 z-50">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-sm">ตัวกรอง</h3>
+                  {activeFilterCount > 0 && (
+                    <button
+                      disabled={isPageActionDisabled}
+                      onClick={clearFilters}
+                      className="text-xs text-blue-600 hover:underline disabled:cursor-not-allowed disabled:text-gray-400 disabled:no-underline"
+                    >
+                      ล้างทั้งหมด
+                    </button>
+                  )}
+                </div>
+
+                {/* Vendor Filter */}
+                <div className="mb-4">
+                  <p className="text-sm font-medium mb-2 text-gray-700">ร้านค้า</p>
+                  <div className="space-y-2 max-h-32 overflow-y-auto">
+                    {vendorNames.map((vendor) => (
+                      <label key={vendor} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={filters.vendorStatus.includes(vendor)}
+                          onChange={() => handleToggleFilter("vendorStatus", vendor)}
+                          className="rounded"
+                        />
+                        <span className="text-sm truncate">{vendor}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Selection Status Filter */}
+                <div>
+                  <p className="text-sm font-medium mb-2 text-gray-700">สถานะการเลือก</p>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={filters.selectionStatus.includes("selected")}
+                        onChange={() => handleToggleFilter("selectionStatus", "selected")}
+                        className="rounded"
+                      />
+                      <span className="text-sm">เลือกแล้ว</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={filters.selectionStatus.includes("unselected")}
+                        onChange={() => handleToggleFilter("selectionStatus", "unselected")}
+                        className="rounded"
+                      />
+                      <span className="text-sm">ยังไม่ได้เลือก</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          <Button
+            className="bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-400 disabled:hover:bg-gray-200"
+            onClick={() => setIsUploadPopupOpen(true)}
+            disabled={isPageActionDisabled}
+          >
             <Upload className="w-4 h-4 mr-2" />
             Upload
           </Button>
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+          <Button
+            className="bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-400 disabled:hover:bg-gray-200"
+            onClick={handleCreateApprovalDocument}
+            disabled={isPageActionDisabled}
+          >
             <Send className="w-4 h-4 mr-2" />
             สร้างใบอนุมัติจัดซื้อ
           </Button>
         </div>
       </div>
 
-      <DataTable columns={columns} data={data} />
+      <DataTable columns={columns} data={filteredData} />
 
       <UploadQuotationPopup
         open={isUploadPopupOpen}
@@ -249,6 +606,7 @@ export default function QuoteComparisonPage() {
         data={selectedAIQuote?.aiSelectionDetail ?? null}
         onClose={() => setSelectedAIQuote(null)}
         onSave={handleSaveSelection}
+        isReadOnly={isPageActionDisabled}
       />
     </div>
   )

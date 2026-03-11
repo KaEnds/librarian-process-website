@@ -3,7 +3,6 @@
 import { ColumnDef } from "@tanstack/react-table"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
-import { ExternalLink } from "lucide-react"
 
 export type VendorQuoteItem = {
   id: number
@@ -26,14 +25,13 @@ export const getColumns = (
   showCheckbox: boolean,
   selectedIds: Set<number>,
   onSelectionChange?: (quoteId: number, checked: boolean) => void,
-  onOpenDetails?: (item: VendorQuoteItem) => void,
 ): ColumnDef<VendorQuoteItem>[] => {
   const baseColumns: ColumnDef<VendorQuoteItem>[] = [
     {
-      accessorKey: "id",
-      header: "No.",
+      accessorKey: "evaluation_id",
+      header: "Evaluation ID",
       cell: ({ row }) => {
-        return <div className="text-sm">{row.index + 1}</div>
+        return <div className="text-sm">{row.getValue("evaluation_id") || "-"}</div>
       },
     },
     {
@@ -77,25 +75,6 @@ export const getColumns = (
       header: "ร้านค้า",
       cell: ({ row }) => {
         return <div className="text-sm text-gray-600">{row.getValue("vendor_name") || "-"}</div>
-      },
-    },
-    {
-      id: "details",
-      header: "",
-      cell: ({ row }) => {
-        const item = row.original
-        return (
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={() => onOpenDetails?.(item)}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-md text-gray-400 hover:bg-muted hover:text-foreground"
-              aria-label={`View details for ${item.title}`}
-            >
-              <ExternalLink className="h-5 w-5" />
-            </button>
-          </div>
-        )
       },
     },
   ]

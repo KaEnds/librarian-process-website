@@ -40,3 +40,22 @@ export const updateMultipleProcessStates = async (
   )
 }
 
+export const updateVendorQuoteNetPrice = async (
+  evaluationId: number,
+  vendorName: string,
+  netPrice: number,
+) => {
+  const response = await fetch('/api/update-vendor-quote-price', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ evaluationId, vendorName, netPrice })
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json()
+    throw new Error(errorData.message || `Failed to update net price for evaluation ${evaluationId}`)
+  }
+
+  return response.json()
+}
+
