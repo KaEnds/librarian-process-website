@@ -389,3 +389,103 @@ export const updateVendorQuoteNetPriceByEvaluationAndVendor = async (
     throw error;
   }
 }
+
+export const getPolicies = async (): Promise<any[]> => {
+  try {
+    const client = await pool.connect();
+
+    const query = `
+      SELECT policy_id, policy_code, description, prompt_instruction, is_active
+      FROM librairy.policies
+      ORDER BY policy_id ASC
+    `;
+
+    const result: QueryResult<any> = await client.query(query);
+    client.release();
+
+    return result.rows;
+  } catch (error: any) {
+    console.error('Error fetching policies:', error.message);
+    throw error;
+  }
+}
+
+export const createPolicy = async (
+  policyCode: string,
+  description: string,
+  promptInstruction: string,
+  isActive: boolean = true
+): Promise<any> => {
+  try {
+    const client = await pool.connect();
+
+    const query = `
+      INSERT INTO librairy.policies (policy_code, description, prompt_instruction, is_active, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      RETURNING policy_id, policy_code, description, prompt_instruction, is_active, created_at, updated_at
+    `;
+    const values = [policyCode, description, promptInstruction, isActive];
+
+    const result: QueryResult<any> = await client.query(query, values);
+    client.release();
+
+    console.log('Policy created successfully!');
+    return result.rows[0];
+  } catch (error: any) {
+    console.error('Error creating policy:', error.message);
+    throw error;
+  }
+}
+
+export const updatePolicy = async (
+  policyId: number,
+  policyCode: string,
+  description: string,
+  promptInstruction: string,
+  isActive: boolean
+): Promise<any> => {
+  try {
+    const client = await pool.connect();
+
+    const query = `
+      UPDATE librairy.policies
+      SET policy_code = $1, description = $2, prompt_instruction = $3, is_active = $4, updated_at = CURRENT_TIMESTAMP
+      WHERE policy_id = $5
+      RETURNING policy_id, policy_code, description, prompt_instruction, is_active, created_at, updated_at
+    `;
+    const values = [policyCode, description, promptInstruction, isActive, policyId];
+
+    const result: QueryResult<any> = await client.query(query, values);
+    client.release();
+
+    if (result.rows.length === 0) {
+      throw new Error(`Policy with ID ${policyId} not found`);
+    }
+
+    console.log(`Policy ${policyId} updated successfully!`);
+    return result.rows[0];
+  } catch (error: any) {
+    console.error('Error updating policy:', error.message);
+    throw error;
+  }
+}
+
+export const deletePolicy = async (policyId: number): Promise<void> => {
+  try {
+    const client = await pool.connect();
+
+    const query = `DELETE FROM librairy.policies WHERE policy_id = $1`;
+
+    const result: QueryResult<any> = await client.query(query, [policyId]);
+    client.release();
+
+    if (result.rowCount === 0) {
+      throw new Error(`Policy with ID ${policyId} not found`);
+    }
+
+    console.log(`Policy ${policyId} deleted successfully!`);
+  } catch (error: any) {
+    console.error('Error deleting policy:', error.message);
+    throw error;
+  }
+}

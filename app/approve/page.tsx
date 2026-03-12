@@ -9,14 +9,18 @@ import { Filter, Download, Send, RotateCcw } from "lucide-react"
 import { useToast } from "@/components/Toast"
 import { useVendorQuotes } from "./hooks/useVendorQuotes"
 import { updateMultipleProcessStates } from "@/utils/api"
+import { PurchaseNotePopup } from "@/components/PurchaseNotePopup"
 
 export default function ApprovePage() {
   const router = useRouter()
   const { showToast } = useToast()
+  const NOTE_STORAGE_KEY = "approve-purchase-note"
 
   // State management
   const [currentBatchDateText, setCurrentBatchDateText] = useState<string | null>(null)
   const [isFilterOpen, setIsFilterOpen] = useState(false)
+  const [isNotePopupOpen, setIsNotePopupOpen] = useState(false)
+  const [purchaseNote, setPurchaseNote] = useState("")
   const [filters, setFilters] = useState({
     vendorStatus: [] as string[],
     approvalStatus: [] as string[],
@@ -65,6 +69,13 @@ export default function ApprovePage() {
       document.removeEventListener("mousedown", handleClickOutside)
     }
   }, [isFilterOpen])
+
+  useEffect(() => {
+    const savedNote = sessionStorage.getItem(NOTE_STORAGE_KEY)
+    if (savedNote) {
+      setPurchaseNote(savedNote)
+    }
+  }, [])
 
   // Table columns configuration
   const columns = getColumns(
@@ -155,6 +166,21 @@ export default function ApprovePage() {
       console.error('Error updating process states for reselection:', error)
       showToast('เกิดข้อผิดพลาดในการเปลี่ยนสถานะ workflow', 'error')
     }
+  }
+
+  const openPurchaseNotePopup = () => {
+    if (filteredData.length === 0) {
+      showToast("ไม่พบรายการสำหรับเขียนหมายเหตุ", "info")
+      return
+    }
+
+    setIsNotePopupOpen(true)
+  }
+
+  const handleSavePurchaseNote = () => {
+    sessionStorage.setItem(NOTE_STORAGE_KEY, purchaseNote)
+    setIsNotePopupOpen(false)
+    showToast("บันทึกหมายเหตุเรียบร้อย", "success")
   }
 
   return (
@@ -322,13 +348,31 @@ export default function ApprovePage() {
             </div>
             <Button 
               className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2 text-base h-auto"
+              onClick={openPurchaseNotePopup}
             >
               <Send className="w-5 h-5 mr-2" />
-              เพิ่มเอกสารอนุมัติ
+              เขียนหมายเหตุ
             </Button>
           </div>
         </div>
       </div>
+
+      <PurchaseNotePopup
+        open={isNotePopupOpen}
+        items={filteredData.map((item) => ({
+          id: item.id,
+          title: item.title,
+          quantity: item.quantity,
+          unit: item.unit,
+          unit_price: item.unit_price,
+          total_price: item.total_price,
+          vendor_name: item.vendor_name,
+        }))}
+        note={purchaseNote}
+        onNoteChange={setPurchaseNote}
+        onClose={() => setIsNotePopupOpen(false)}
+        onSave={handleSavePurchaseNote}
+      />
 
 
     </div>
