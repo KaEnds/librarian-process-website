@@ -6,17 +6,43 @@ import { FormEvent, useState } from "react";
 import logo from "@/images/KMUTT_logo.jpg";
 import Link from "next/link";
 import { createUser } from "@/actions/auth";
+import { useToast } from "@/components/Toast";
+import { useRouter } from "next/navigation";
 
 export default function Register() {
+  const router = useRouter();
+  const { showToast } = useToast();
+  const [name, setName] = useState("");
+  const [surname, setSurname] = useState("");
   const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
+  const [userRole, setUserRole] = useState("admin");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    createUser(username, email, password, confirmPassword);
-    
+
+    try {
+      setIsSubmitting(true);
+      const response = await createUser({
+        username,
+        password,
+        confirmPassword,
+        userRole,
+        accountStatus: "active",
+        name,
+        surname,
+      });
+
+      showToast(response.message ?? "สมัครสมาชิกสำเร็จ", "success");
+      router.push("/login");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "สมัครสมาชิกไม่สำเร็จ";
+      showToast(message, "error");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -56,6 +82,24 @@ export default function Register() {
           <form onSubmit={handleSubmit} className="space-y-6">
             <Input
               type="text"
+              placeholder="First Name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full px-4 py-6 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+
+            <Input
+              type="text"
+              placeholder="Surname"
+              value={surname}
+              onChange={(e) => setSurname(e.target.value)}
+              className="w-full px-4 py-6 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+
+            <Input
+              type="text"
               placeholder="Username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
@@ -63,14 +107,16 @@ export default function Register() {
               required
             />
 
-            <Input
-              type="email"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-6 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            <select
+              value={userRole}
+              onChange={(e) => setUserRole(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
-            />
+            >
+              <option value="admin">admin</option>
+              <option value="librarian">librarian</option>
+              <option value="director">director</option>
+            </select>
 
             <Input
               type="password"
@@ -93,8 +139,9 @@ export default function Register() {
             <Button
               type="submit"
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-6 rounded-full mt-6"
+              disabled={isSubmitting}
             >
-              Register
+              {isSubmitting ? "Registering..." : "Register"}
             </Button>
           </form>
 

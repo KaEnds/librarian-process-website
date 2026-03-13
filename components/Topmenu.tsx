@@ -15,6 +15,15 @@ interface ProcessState {
   updated_at: string
 }
 
+interface CurrentUser {
+  user_id: number
+  username: string
+  user_role: string
+  account_status: string
+  name: string
+  surname: string
+}
+
 const iconMap = [FileText, Send, Home, UserCheck]
 
 const formatDateTime = (value: string | null) => {
@@ -43,6 +52,7 @@ function Topmenu() {
   const [openNotificationMenu, setOpenNotificationMenu] = useState(false)
   const [notifications, setNotifications] = useState<RequestNotificationItem[]>([])
   const [processStates, setProcessStates] = useState<ProcessState[]>([])
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -59,6 +69,26 @@ function Topmenu() {
     return () => {
       window.removeEventListener(REQUEST_NOTIFICATIONS_UPDATED_EVENT, syncNotifications)
     }
+  }, [])
+
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const response = await fetch('/api/my-account')
+        if (!response.ok) {
+          return
+        }
+
+        const payload = await response.json()
+        if (payload?.user) {
+          setCurrentUser(payload.user as CurrentUser)
+        }
+      } catch (error) {
+        console.error('Error fetching current user:', error)
+      }
+    }
+
+    fetchCurrentUser()
   }, [])
 
   useEffect(() => {
@@ -107,6 +137,19 @@ function Topmenu() {
   ]
 
   const currentLanguage = languages.find(lang => lang.code === language)
+
+  const mapRoleLabel = (role: string | undefined): string => {
+    switch ((role || '').toLowerCase()) {
+      case 'librarian':
+        return 'บรรณารักษ์'
+      case 'director':
+        return 'หัวหน้างาน'
+      case 'admin':
+        return 'admin'
+      default:
+        return '-'
+    }
+  }
 
   const steps = processStates.map((process) => ({
     id: process.process_id,
@@ -305,8 +348,10 @@ function Topmenu() {
         {/* User Profile */}
         <div className="flex items-center gap-3 pl-6 border-l border-slate-200">
           <div>
-            <p className="text-sm font-medium text-slate-900">นายสมชาย บุญมั่งมี</p>
-            <p className="text-xs text-slate-500">บรรณารักษ์</p>
+            <p className="text-sm font-medium text-slate-900">
+              {`${currentUser?.name ?? ''} ${currentUser?.surname ?? ''}`.trim() || currentUser?.username || '-'}
+            </p>
+            <p className="text-xs text-slate-500">{mapRoleLabel(currentUser?.user_role)}</p>
           </div>
           <div className="w-10 h-10 bg-slate-300 rounded-full flex items-center justify-center">
             <User className="w-6 h-6 text-slate-600" />

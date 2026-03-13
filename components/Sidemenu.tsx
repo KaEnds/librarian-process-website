@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { ChevronDown, Home, Grid2X2, FileText, Users, Bell, Settings, HelpCircle, Book } from 'lucide-react'
 import librairy_logo from '../images/librairy_logo.png'
+import { useToast } from '@/components/Toast'
+import { logoutUser } from '@/actions/auth'
 import {
   getUnseenRequestNotifications,
   REQUEST_NOTIFICATIONS_UPDATED_EVENT,
@@ -14,7 +16,10 @@ function Sidemenu() {
   const [openWorkflow, setOpenWorkflow] = useState(false)
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0)
   const [currentProcessId, setCurrentProcessId] = useState<number | null>(null)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
   const pathname = usePathname()
+  const router = useRouter()
+  const { showToast } = useToast()
   const isActive = (path: string) => pathname === path
 
   const isProcessActive = (processId: number) => currentProcessId === processId
@@ -35,6 +40,21 @@ function Sidemenu() {
       window.removeEventListener(REQUEST_NOTIFICATIONS_UPDATED_EVENT, syncUnreadCount)
     }
   }, [])
+
+  const handleLogout = async () => {
+    try {
+      setIsLoggingOut(true)
+      await logoutUser()
+      showToast('ออกจากระบบสำเร็จ', 'success')
+      router.push('/login')
+      router.refresh()
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'ออกจากระบบไม่สำเร็จ'
+      showToast(message, 'error')
+    } finally {
+      setIsLoggingOut(false)
+    }
+  }
 
   useEffect(() => {
     let isMounted = true
@@ -156,7 +176,7 @@ function Sidemenu() {
           </div>
 
           {/* จัดการร้านค้า */}
-          <div className="mb-3">
+          {/* <div className="mb-3">
             <Link
               href="/vendor"
               className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition ${isActive("/vendor") ? "bg-slate-800 text-white" : "text-slate-200 hover:bg-slate-800"}`}
@@ -164,7 +184,7 @@ function Sidemenu() {
               <Home className="w-5 h-5" />
               Vendor
             </Link>
-          </div>
+          </div> */}
 
           <div className="mb-3">
             <Link
@@ -235,9 +255,13 @@ function Sidemenu() {
             <HelpCircle className="w-5 h-5" />
             FAQ
           </button>
-          <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-200 hover:bg-slate-800 transition">
+          <button
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-200 hover:bg-slate-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             <HelpCircle className="w-5 h-5" />
-            log out
+            {isLoggingOut ? 'logging out...' : 'log out'}
           </button>
         </div>
       </div>

@@ -3,18 +3,33 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FormEvent, useState } from "react";
-import { useFormStatus } from "react-dom";
 import logo from "@/images/KMUTT_logo.jpg";
+import { loginUser } from "@/actions/auth";
+import { useToast } from "@/components/Toast";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function Login() {
+  const router = useRouter();
+  const { showToast } = useToast();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const status = useFormStatus();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // Handle login logic here
-    console.log("Login attempt:", { username, password });
+
+    try {
+      setIsSubmitting(true);
+      const response = await loginUser(username, password);
+      showToast(response.message ?? "เข้าสู่ระบบสำเร็จ", "success");
+      router.push("/dashboard");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "เข้าสู่ระบบไม่สำเร็จ";
+      showToast(message, "error");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -73,17 +88,21 @@ export default function Login() {
             <Button
               type="submit"
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-6 rounded-full mt-6"
-              disabled={status.pending}
+              disabled={isSubmitting}
             >
-              Login
+              {isSubmitting ? "Logging in..." : "Login"}
             </Button>
           </form>
 
           {/* Forgot password link */}
-          <div className="text-center mt-4">
-            <a href="#" className="text-sm text-gray-600 hover:text-gray-800">
+          <div className="text-center mt-4 text-sm text-gray-600">
+            <a href="#" className="hover:text-gray-800">
               Forgot Password
             </a>
+            <span className="mx-2">|</span>
+            <Link href="/register" className="text-blue-600 hover:text-blue-700 font-medium">
+              Create account
+            </Link>
           </div>
         </div>
       </div>

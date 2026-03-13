@@ -1,4 +1,6 @@
 import { Pool, QueryResult } from 'pg';
+import { hash } from 'bcryptjs';
+import { compare } from 'bcryptjs';
 
 const pool = new Pool({
   host: 'host.docker.internal',
@@ -27,6 +29,144 @@ export const testConnection = async (): Promise<boolean> => {
   }
 
 };
+
+export type RegisterWebUserInput = {
+  username: string;
+  password: string;
+  userRole: string;
+  accountStatus: string;
+  name: string;
+  surname: string;
+};
+
+export type RegisterWebUserRecord = {
+  user_id: number;
+  username: string;
+  user_role: string;
+  account_status: string;
+  name: string;
+  surname: string;
+};
+
+type LoginWebUserRow = RegisterWebUserRecord & {
+  password: string;
+};
+
+export const registerWebUser = async ({
+  username,
+  password,
+  userRole,
+  accountStatus,
+  name,
+  surname,
+}: RegisterWebUserInput): Promise<RegisterWebUserRecord> => {
+  try {
+    const client = await pool.connect();
+
+    const passwordHash = await hash(password, 12);
+
+    const query = `
+      INSERT INTO librairy.web_user (username, password, user_role, account_status, name, surname)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING user_id, username, user_role, account_status, name, surname
+    `;
+
+    const values = [username, passwordHash, userRole, accountStatus, name, surname];
+    const result: QueryResult<RegisterWebUserRecord> = await client.query(query, values);
+
+    client.release();
+    return result.rows[0];
+  } catch (error: unknown) {
+    console.error('Error registering web user:', error);
+    throw error;
+  }
+}
+
+export const loginWebUser = async (username: string, password: string): Promise<RegisterWebUserRecord | null> => {
+  const normalizedUsername = username.trim();
+
+  let client;
+  try {
+    client = await pool.connect();
+
+    const query = `
+      SELECT user_id, TRIM(username) AS username, RTRIM(password) AS password, user_role, account_status, name, surname
+      FROM librairy.web_user
+      WHERE LOWER(TRIM(username)) = LOWER($1)
+      LIMIT 1
+    `;
+
+    const result: QueryResult<LoginWebUserRow> = await client.query(query, [normalizedUsername]);
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    const user = result.rows[0];
+    const storedPassword = user.password?.trimEnd() ?? '';
+    const isBcryptHash = /^\$2[aby]\$\d{2}\$/.test(storedPassword);
+    const isPasswordValid = isBcryptHash
+      ? await compare(password, storedPassword)
+      : password === storedPassword;
+
+    if (!isPasswordValid) {
+      return null;
+    }
+
+    if (!isBcryptHash) {
+      const passwordHash = await hash(password, 12);
+      await client.query(
+        `
+          UPDATE librairy.web_user
+          SET password = $1
+          WHERE user_id = $2
+        `,
+        [passwordHash, user.user_id]
+      );
+    }
+
+    return {
+      user_id: user.user_id,
+      username: user.username,
+      user_role: user.user_role,
+      account_status: user.account_status,
+      name: user.name,
+      surname: user.surname,
+    };
+  } catch (error: unknown) {
+    console.error('Error logging in web user:', error);
+    throw error;
+  } finally {
+    client?.release();
+  }
+}
+
+export const getWebUserById = async (userId: number): Promise<RegisterWebUserRecord | null> => {
+  let client;
+  try {
+    client = await pool.connect();
+
+    const query = `
+      SELECT user_id, TRIM(username) AS username, user_role, account_status, name, surname
+      FROM librairy.web_user
+      WHERE user_id = $1
+      LIMIT 1
+    `;
+
+    const result: QueryResult<RegisterWebUserRecord> = await client.query(query, [userId]);
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return result.rows[0];
+  } catch (error: unknown) {
+    console.error('Error fetching web user by id:', error);
+    throw error;
+  } finally {
+    client?.release();
+  }
+}
 
 export const getBookRequestsByBatches = async (since?: string): Promise<any[]> => {
   try {
