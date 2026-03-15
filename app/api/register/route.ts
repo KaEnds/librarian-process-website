@@ -43,7 +43,7 @@ export const POST = async (request: NextRequest) => {
   } catch (error: unknown) {
     const dbError = error as { code?: string; message?: string };
 
-    if (dbError?.code === "23505") {
+    if (dbError?.code === "23505" || dbError?.code === "USERNAME_EXISTS") {
       return NextResponse.json(
         { message: "username นี้ถูกใช้งานแล้ว" },
         { status: 409 }

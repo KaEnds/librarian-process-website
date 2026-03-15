@@ -60,8 +60,26 @@ export const registerWebUser = async ({
   name,
   surname,
 }: RegisterWebUserInput): Promise<RegisterWebUserRecord> => {
+  const normalizedUsername = username.trim();
+
+  let client;
   try {
-    const client = await pool.connect();
+    client = await pool.connect();
+
+    const existingUserQuery = `
+      SELECT user_id
+      FROM librairy.web_user
+      WHERE LOWER(TRIM(username)) = LOWER($1)
+      LIMIT 1
+    `;
+
+    const existingUserResult: QueryResult<{ user_id: number }> = await client.query(existingUserQuery, [normalizedUsername]);
+
+    if (existingUserResult.rows.length > 0) {
+      const duplicateError = new Error('username นี้ถูกใช้งานแล้ว') as Error & { code?: string };
+      duplicateError.code = 'USERNAME_EXISTS';
+      throw duplicateError;
+    }
 
     const passwordHash = await hash(password, 12);
 
@@ -71,14 +89,14 @@ export const registerWebUser = async ({
       RETURNING user_id, username, user_role, account_status, name, surname
     `;
 
-    const values = [username, passwordHash, userRole, accountStatus, name, surname];
+    const values = [normalizedUsername, passwordHash, userRole, accountStatus, name, surname];
     const result: QueryResult<RegisterWebUserRecord> = await client.query(query, values);
-
-    client.release();
     return result.rows[0];
   } catch (error: unknown) {
     console.error('Error registering web user:', error);
     throw error;
+  } finally {
+    client?.release();
   }
 }
 

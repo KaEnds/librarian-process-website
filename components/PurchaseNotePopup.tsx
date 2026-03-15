@@ -20,6 +20,9 @@ type PurchaseNotePopupProps = {
   onNoteChange: (value: string) => void
   onClose: () => void
   onSave: () => void
+  isDirector?: boolean
+  onApprove?: () => void
+  onReject?: () => void
 }
 
 const toNumber = (value: string): number => {
@@ -34,6 +37,9 @@ export function PurchaseNotePopup({
   onNoteChange,
   onClose,
   onSave,
+  isDirector = false,
+  onApprove,
+  onReject,
 }: PurchaseNotePopupProps) {
   if (!open) {
     return null
@@ -41,6 +47,22 @@ export function PurchaseNotePopup({
 
   const totalAmount = items.reduce((sum, item) => sum + toNumber(item.total_price), 0)
   const totalQuantity = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0)
+
+  const handleApprove = () => {
+    if (onApprove) {
+      onApprove()
+      return
+    }
+    onSave()
+  }
+
+  const handleReject = () => {
+    if (onReject) {
+      onReject()
+      return
+    }
+    onClose()
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
@@ -68,12 +90,28 @@ export function PurchaseNotePopup({
           </div>
 
           <div className="mt-4 flex justify-center gap-3">
-            <Button variant="outline" onClick={onClose}>
-              ยกเลิก
-            </Button>
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={onSave}>
-              บันทึก
-            </Button>
+            {isDirector ? (
+              <>
+                <Button variant="outline" onClick={onClose}>
+                  ยกเลิก
+                </Button>
+                <Button className="bg-red-600 hover:bg-red-700 text-white" onClick={handleReject}>
+                  ไม่อนุมัติจัดซื้อ
+                </Button>
+                <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={handleApprove}>
+                  อนุมัติจัดซื้อ
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="outline" onClick={onClose}>
+                  ยกเลิก
+                </Button>
+                <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={onSave}>
+                  บันทึก
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>

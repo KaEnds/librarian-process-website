@@ -20,6 +20,7 @@ export default function ApprovePage() {
   const [currentBatchDateText, setCurrentBatchDateText] = useState<string | null>(null)
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [isNotePopupOpen, setIsNotePopupOpen] = useState(false)
+  const [userRole, setUserRole] = useState<string | null>(null)
   const [purchaseNote, setPurchaseNote] = useState("")
   const [process4Status, setProcess4Status] = useState<string | null>(null)
   const [isProcessStatusLoading, setIsProcessStatusLoading] = useState(true)
@@ -80,6 +81,24 @@ export default function ApprovePage() {
     if (savedNote) {
       setPurchaseNote(savedNote)
     }
+  }, [])
+
+  useEffect(() => {
+    const fetchCurrentUserRole = async () => {
+      try {
+        const response = await fetch('/api/my-account')
+        if (!response.ok) {
+          return
+        }
+
+        const payload = await response.json()
+        setUserRole(payload?.user?.user_role ?? null)
+      } catch (error) {
+        console.error('Error fetching current user role:', error)
+      }
+    }
+
+    fetchCurrentUserRole()
   }, [])
 
   useEffect(() => {
@@ -171,6 +190,10 @@ export default function ApprovePage() {
     return filteredData
   }, [filteredData, isProcess4Pending])
 
+  const noteButtonLabel = userRole?.toLowerCase() === 'director'
+    ? 'อนุมัติการจัดซื้อ'
+    : 'เขียนหมายเหตุ'
+
   const visibleTotalCount = isProcess4Pending ? 0 : data.length
 
   const handleExport = () => {
@@ -242,6 +265,17 @@ export default function ApprovePage() {
     sessionStorage.setItem(NOTE_STORAGE_KEY, purchaseNote)
     setIsNotePopupOpen(false)
     showToast("บันทึกหมายเหตุเรียบร้อย", "success")
+  }
+
+  const handleDirectorApprovePurchase = () => {
+    sessionStorage.setItem(NOTE_STORAGE_KEY, purchaseNote)
+    setIsNotePopupOpen(false)
+    showToast("อนุมัติการจัดซื้อเรียบร้อย", "success")
+  }
+
+  const handleDirectorRejectPurchase = () => {
+    setIsNotePopupOpen(false)
+    showToast("ไม่อนุมัติการจัดซื้อ", "info")
   }
 
   useEffect(() => {
@@ -426,7 +460,7 @@ export default function ApprovePage() {
               disabled={isActionDisabled}
             >
               <PenLine className="w-5 h-5 mr-2" />
-              เขียนหมายเหตุ
+              {noteButtonLabel}
             </Button>
           </div>
         </div>
@@ -447,6 +481,9 @@ export default function ApprovePage() {
         onNoteChange={setPurchaseNote}
         onClose={() => setIsNotePopupOpen(false)}
         onSave={handleSavePurchaseNote}
+        isDirector={userRole?.toLowerCase() === 'director'}
+        onApprove={handleDirectorApprovePurchase}
+        onReject={handleDirectorRejectPurchase}
       />
 
 
