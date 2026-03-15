@@ -66,7 +66,10 @@ export const getColumns = (
     ),
     size: 180,
     maxSize: 200,
-    cell: ({ row }) => <div className="font-bold text-sm truncate">{row.getValue("title")}</div>,
+    cell: ({ row }) => {
+      const title = row.getValue("title") as string
+      return <div className="max-w-[200px] truncate font-bold text-sm" title={title}>{title}</div>
+    },
   },
   {
     accessorKey: "author",

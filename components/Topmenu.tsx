@@ -8,6 +8,12 @@ import {
   REQUEST_NOTIFICATIONS_UPDATED_EVENT,
   type RequestNotificationItem,
 } from '@/lib/request-notifications'
+import {
+  fetchRecentWorkflowNotifications,
+  getUnseenWorkflowNotifications,
+  markAllWorkflowNotificationsSeen,
+  type WorkflowApiNotificationItem,
+} from '@/lib/workflow-notification-client'
 
 interface ProcessState {
   process_id: number
@@ -51,6 +57,7 @@ function Topmenu() {
   const [openLanguageMenu, setOpenLanguageMenu] = useState(false)
   const [openNotificationMenu, setOpenNotificationMenu] = useState(false)
   const [notifications, setNotifications] = useState<RequestNotificationItem[]>([])
+  const [workflowNotifications, setWorkflowNotifications] = useState<WorkflowApiNotificationItem[]>([])
   const [processStates, setProcessStates] = useState<ProcessState[]>([])
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
 
@@ -59,14 +66,27 @@ function Topmenu() {
       return
     }
 
-    const syncNotifications = () => {
-      setNotifications(getUnseenRequestNotifications())
+    let disposed = false
+
+    const syncNotifications = async () => {
+      const requestItems = getUnseenRequestNotifications()
+      const workflowItems = await fetchRecentWorkflowNotifications(100)
+
+      if (disposed) {
+        return
+      }
+
+      setNotifications(requestItems)
+      setWorkflowNotifications(getUnseenWorkflowNotifications(workflowItems))
     }
 
     syncNotifications()
+    const interval = setInterval(syncNotifications, 15000)
     window.addEventListener(REQUEST_NOTIFICATIONS_UPDATED_EVENT, syncNotifications)
 
     return () => {
+      disposed = true
+      clearInterval(interval)
       window.removeEventListener(REQUEST_NOTIFICATIONS_UPDATED_EVENT, syncNotifications)
     }
   }, [])
@@ -123,9 +143,11 @@ function Topmenu() {
   }
 
   const handleToggleNotificationMenu = () => {
-    if (openNotificationMenu && notifications.length > 0) {
+    if (openNotificationMenu && (notifications.length > 0 || workflowNotifications.length > 0)) {
       markAllRequestNotificationsSeen()
+      markAllWorkflowNotificationsSeen()
       setNotifications([])
+      setWorkflowNotifications([])
     }
 
     setOpenNotificationMenu(!openNotificationMenu)
@@ -156,6 +178,8 @@ function Topmenu() {
     icon: iconMap[process.process_id - 1] || FileText,
     status: mapStatus(process.status),
   }))
+
+  const totalUnreadNotifications = notifications.length + workflowNotifications.length
 
   return (
     <div className="fixed top-0 right-0 h-20 w-[calc(100%-16rem)] bg-white border-b border-slate-200 flex items-center justify-between px-6 z-40">
@@ -277,7 +301,7 @@ function Topmenu() {
             className="relative text-slate-600 hover:text-slate-900 transition"
           >
             <Bell className="w-5 h-5" />
-            {notifications.length > 0 && (
+            {totalUnreadNotifications > 0 && (
               <span className="absolute top-0 right-0 w-2 h-2 bg-blue-500 rounded-full"></span>
             )}
           </button>
@@ -285,16 +309,30 @@ function Topmenu() {
           {openNotificationMenu && (
             <div className="absolute top-full right-0 mt-2 w-80 bg-white border border-slate-200 rounded-lg shadow-lg z-50">
               <div className="px-4 py-2 border-b border-slate-200 text-sm font-semibold text-slate-800">
-                แจ้งเตือนคำร้องใหม่
+                แจ้งเตือนล่าสุด
               </div>
               <div className="max-h-72 overflow-y-auto">
-                {notifications.length ? (
-                  notifications.map((notification, index) => (
+                {totalUnreadNotifications > 0 ? (
+                  <>
+                    {notifications.map((notification, index) => (
                     <div key={`${notification.requestId}-${index}`} className="px-4 py-3 border-b border-slate-100 last:border-b-0">
                       <p className="text-sm text-slate-800">มี request id: <span className="font-semibold">{notification.requestId}</span></p>
                       <p className="text-xs text-slate-500">requested_at: {formatDateTime(notification.requestedAt)}</p>
                     </div>
-                  ))
+                    ))}
+                    {workflowNotifications.map((notification, index) => (
+                      <div key={`workflow-${notification.id}-${index}`} className="px-4 py-3 border-b border-slate-100 last:border-b-0">
+                        <p className="text-sm text-slate-800">
+                          {notification.message || "Workflow notification"}
+                        </p>
+                        {notification.workflow_name && (
+                          <p className="text-xs text-slate-500">workflow: {notification.workflow_name}</p>
+                        )}
+                        <p className="text-xs text-slate-500">status: {notification.status}</p>
+                        <p className="text-xs text-slate-500">at: {formatDateTime(notification.created_at)}</p>
+                      </div>
+                    ))}
+                  </>
                 ) : (
                   <div className="px-4 py-4 text-sm text-slate-500">ยังไม่มีแจ้งเตือนใหม่</div>
                 )}

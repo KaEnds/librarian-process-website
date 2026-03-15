@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { getColumns } from "./columns"
 import { DataTable } from "./data-table"
 import { Button } from "@/components/ui/button"
-import { Filter, Download, Send, RotateCcw } from "lucide-react"
+import { Filter, Download, Send, RotateCcw, PenLine } from "lucide-react"
 import { useToast } from "@/components/Toast"
 import { useVendorQuotes } from "./hooks/useVendorQuotes"
 import { updateMultipleProcessStates } from "@/utils/api"
@@ -21,6 +21,8 @@ export default function ApprovePage() {
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [isNotePopupOpen, setIsNotePopupOpen] = useState(false)
   const [purchaseNote, setPurchaseNote] = useState("")
+  const [process4Status, setProcess4Status] = useState<string | null>(null)
+  const [isProcessStatusLoading, setIsProcessStatusLoading] = useState(true)
   const [filters, setFilters] = useState({
     vendorStatus: [] as string[],
     approvalStatus: [] as string[],
@@ -51,6 +53,9 @@ export default function ApprovePage() {
     setFilters({ vendorStatus: [], approvalStatus: [] })
   }
 
+  const isProcess4Pending = process4Status === "PENDING"
+  const isActionDisabled = isProcessStatusLoading || isProcess4Pending
+
 
 
   // Close filter dropdown on outside click
@@ -75,6 +80,28 @@ export default function ApprovePage() {
     if (savedNote) {
       setPurchaseNote(savedNote)
     }
+  }, [])
+
+  useEffect(() => {
+    const fetchProcessStatus = async () => {
+      setIsProcessStatusLoading(true)
+      try {
+        const response = await fetch("/api/get-process-state?processId=4")
+        if (response.ok) {
+          const payload = await response.json()
+          setProcess4Status(payload?.status ?? null)
+          return
+        }
+        setProcess4Status(null)
+      } catch (error) {
+        console.error("Error fetching process 4 status:", error)
+        setProcess4Status(null)
+      } finally {
+        setIsProcessStatusLoading(false)
+      }
+    }
+
+    fetchProcessStatus()
   }, [])
 
   // Table columns configuration
@@ -125,20 +152,41 @@ export default function ApprovePage() {
   }, [data])
 
   const totalPrice = useMemo(() => {
+    if (isProcess4Pending) {
+      return "0"
+    }
+
     const total = filteredData.reduce((sum, item) => {
       const price = parseFloat(item.unit_price.replace(/,/g, '')) || 0
       return sum + price
     }, 0)
     
     return total.toLocaleString('th-TH', { minimumFractionDigits: 0 })
-  }, [filteredData])
+  }, [filteredData, isProcess4Pending])
+
+  const tableData = useMemo(() => {
+    if (isProcess4Pending) {
+      return []
+    }
+    return filteredData
+  }, [filteredData, isProcess4Pending])
+
+  const visibleTotalCount = isProcess4Pending ? 0 : data.length
 
   const handleExport = () => {
+    if (isActionDisabled) {
+      return
+    }
+
     // TODO: Implement export functionality
     showToast('กำลังพัฒนาฟังก์ชันนี้', 'info')
   }
 
   const handleViewApprovalDocument = () => {
+    if (isActionDisabled) {
+      return
+    }
+
     if (filteredData.length === 0) {
       showToast('ไม่พบรายการสำหรับสร้างเอกสาร', 'info')
       return
@@ -155,6 +203,15 @@ export default function ApprovePage() {
   }
 
   const handleSelectAgain = async () => {
+    if (isActionDisabled) {
+      return
+    }
+
+    const isConfirmed = window.confirm("ยืนยันการเปลี่ยนสถานะเพื่อกลับไปเลือกใบเสนอราคาอีกครั้งใช่หรือไม่?")
+    if (!isConfirmed) {
+      return
+    }
+
     try {
       await updateMultipleProcessStates([
         { processId: 3, status: 'IN_PROGRESS' },
@@ -169,6 +226,10 @@ export default function ApprovePage() {
   }
 
   const openPurchaseNotePopup = () => {
+    if (isActionDisabled) {
+      return
+    }
+
     if (filteredData.length === 0) {
       showToast("ไม่พบรายการสำหรับเขียนหมายเหตุ", "info")
       return
@@ -182,6 +243,13 @@ export default function ApprovePage() {
     setIsNotePopupOpen(false)
     showToast("บันทึกหมายเหตุเรียบร้อย", "success")
   }
+
+  useEffect(() => {
+    if (isActionDisabled) {
+      setIsFilterOpen(false)
+      setIsNotePopupOpen(false)
+    }
+  }, [isActionDisabled])
 
   return (
     <div className="w-full p-8 bg-gray-50 h-[calc(100vh-80px)]">
@@ -200,9 +268,9 @@ export default function ApprovePage() {
             <h1 className="text-xl font-bold">อนุมัติใบเสนอราคา</h1>
             <span className="text-blue-600 text-sm">
               <span className="font-semibold">
-                {filteredData.length !== data.length 
-                  ? `${filteredData.length} / ${data.length} รายการ` 
-                  : `${data.length} รายการ`
+                {tableData.length !== visibleTotalCount 
+                  ? `${tableData.length} / ${visibleTotalCount} รายการ` 
+                  : `${visibleTotalCount} รายการ`
                 }
               </span>
             </span>
@@ -214,8 +282,9 @@ export default function ApprovePage() {
           <div className="relative" ref={filterRef}>
             <Button 
               variant="outline" 
-              className={`bg-white ${isFilterOpen ? 'border-blue-500' : ''}`}
+              className={`bg-white ${isFilterOpen ? 'border-blue-500' : ''} disabled:bg-gray-100 disabled:text-gray-400 disabled:border-gray-200`}
               onClick={() => setIsFilterOpen(!isFilterOpen)}
+              disabled={isActionDisabled}
             >
               <Filter className="w-4 h-4 mr-2" />
               Filters
@@ -235,6 +304,7 @@ export default function ApprovePage() {
                     <button
                       onClick={clearFilters}
                       className="text-xs text-blue-600 hover:underline"
+                      disabled={isActionDisabled}
                     >
                       ล้างทั้งหมด
                     </button>
@@ -298,8 +368,9 @@ export default function ApprovePage() {
           
           <Button 
             variant="outline" 
-            className="bg-white"
+            className="bg-white disabled:bg-gray-100 disabled:text-gray-400 disabled:border-gray-200"
             onClick={handleExport}
+            disabled={isActionDisabled}
           >
             <Download className="w-4 h-4 mr-2" />
             Export
@@ -307,16 +378,18 @@ export default function ApprovePage() {
           
           <Button
             variant="outline"
-            className="bg-white"
+            className="bg-white disabled:bg-gray-100 disabled:text-gray-400 disabled:border-gray-200"
             onClick={handleSelectAgain}
+            disabled={isActionDisabled}
           >
             <RotateCcw className="w-4 h-4 mr-2" />
             เลือกอีกครั้ง
           </Button>
 
           <Button 
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            className="bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-400 disabled:text-white disabled:hover:bg-gray-400"
             onClick={handleViewApprovalDocument}
+            disabled={isActionDisabled}
           >
             <Download className="w-4 h-4 mr-2" />
             ดูเป็นเอกสาร
@@ -327,8 +400,9 @@ export default function ApprovePage() {
       {/* Data Table */}
       <DataTable
         columns={columns}
-        data={filteredData}
+        data={tableData}
         isLoading={isLoading}
+        showPendingIllustration={isProcess4Pending}
       />
 
       {/* Bottom Bar */}
@@ -336,7 +410,7 @@ export default function ApprovePage() {
         <div className="flex items-center justify-between px-8 py-4">
           <div className="flex flex-col">
               <span className="text-xs text-gray-500 font-medium uppercase">จำนวนทั้งสิ้น</span>
-              <span className="text-lg font-bold text-blue-600 mt-1">{filteredData.length} รายการ</span>
+              <span className="text-lg font-bold text-blue-600 mt-1">{tableData.length} รายการ</span>
             </div>
           <div className="flex items-center gap-8">
             <div className="flex flex-col text-right">
@@ -347,10 +421,11 @@ export default function ApprovePage() {
               </div>
             </div>
             <Button 
-              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2 text-base h-auto"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2 text-base h-auto disabled:bg-gray-400 disabled:text-white disabled:hover:bg-gray-400"
               onClick={openPurchaseNotePopup}
+              disabled={isActionDisabled}
             >
-              <Send className="w-5 h-5 mr-2" />
+              <PenLine className="w-5 h-5 mr-2" />
               เขียนหมายเหตุ
             </Button>
           </div>
@@ -359,7 +434,7 @@ export default function ApprovePage() {
 
       <PurchaseNotePopup
         open={isNotePopupOpen}
-        items={filteredData.map((item) => ({
+        items={tableData.map((item) => ({
           id: item.id,
           title: item.title,
           quantity: item.quantity,

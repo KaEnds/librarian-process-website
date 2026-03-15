@@ -5,6 +5,7 @@ export type ApprovalDocumentItem = {
   unit: string
   unit_price: string
   total_price: string
+  net_price?: string
   vendor_name: string
 }
 
@@ -21,10 +22,19 @@ const toThaiNumber = (value: number): string => {
   return new Intl.NumberFormat("th-TH").format(value)
 }
 
+const toNumberOrNull = (value: unknown): number | null => {
+  const numeric = Number.parseFloat(String(value ?? "").replace(/,/g, ""))
+  return Number.isNaN(numeric) ? null : numeric
+}
+
+const getBestPriceValue = (item: ApprovalDocumentItem): number | null => {
+  return toNumberOrNull(item.total_price) ?? toNumberOrNull(item.net_price) ?? toNumberOrNull(item.unit_price)
+}
+
 const normalizePrice = (value: string): string => {
   const numeric = Number.parseFloat(String(value).replace(/,/g, ""))
   if (Number.isNaN(numeric)) {
-    return "0"
+    return "-"
   }
   return toThaiNumber(Math.round(numeric))
 }
@@ -34,14 +44,15 @@ export const buildApprovalDocumentHtml = (
   batchDateText?: string | null,
 ): string => {
   const totalAmount = items.reduce((sum, item) => {
-    const parsed = Number.parseFloat(String(item.total_price).replace(/,/g, ""))
-    return sum + (Number.isNaN(parsed) ? 0 : parsed)
+    const parsed = getBestPriceValue(item)
+    return sum + (parsed ?? 0)
   }, 0)
 
   const headerDate = batchDateText ?? "-"
   const rows = items
     .map((item, index) => {
-      return `<li>Title : ${escapeHtml(item.title)}<br/>จำนวน ${toThaiNumber(item.quantity)} ${escapeHtml(item.unit || "รายการ")} ราคา ${normalizePrice(item.total_price)} บาท (ร้าน ${escapeHtml(item.vendor_name || "-")})</li>`
+      const displayPrice = normalizePrice(String(getBestPriceValue(item) ?? ""))
+      return `<li>Title : ${escapeHtml(item.title)}<br/>จำนวน ${toThaiNumber(item.quantity)} ${escapeHtml(item.unit || "รายการ")} ราคา ${displayPrice} บาท (ร้าน ${escapeHtml(item.vendor_name || "-")})</li>`
     })
     .join("")
 

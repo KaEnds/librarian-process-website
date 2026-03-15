@@ -11,6 +11,10 @@ import {
   getUnseenRequestNotifications,
   REQUEST_NOTIFICATIONS_UPDATED_EVENT,
 } from '@/lib/request-notifications'
+import {
+  fetchRecentWorkflowNotifications,
+  getUnseenWorkflowNotifications,
+} from '@/lib/workflow-notification-client'
 
 function Sidemenu() {
   const [openWorkflow, setOpenWorkflow] = useState(false)
@@ -29,14 +33,27 @@ function Sidemenu() {
       return
     }
 
-    const syncUnreadCount = () => {
-      setUnreadNotificationCount(getUnseenRequestNotifications().length)
+    let disposed = false
+
+    const syncUnreadCount = async () => {
+      const requestCount = getUnseenRequestNotifications().length
+      const workflowItems = await fetchRecentWorkflowNotifications(100)
+      const workflowCount = getUnseenWorkflowNotifications(workflowItems).length
+
+      if (disposed) {
+        return
+      }
+
+      setUnreadNotificationCount(requestCount + workflowCount)
     }
 
     syncUnreadCount()
+    const interval = setInterval(syncUnreadCount, 15000)
     window.addEventListener(REQUEST_NOTIFICATIONS_UPDATED_EVENT, syncUnreadCount)
 
     return () => {
+      disposed = true
+      clearInterval(interval)
       window.removeEventListener(REQUEST_NOTIFICATIONS_UPDATED_EVENT, syncUnreadCount)
     }
   }, [])

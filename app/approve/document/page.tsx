@@ -50,13 +50,25 @@ export default function ApproveDocumentPage() {
     setHtmlContent(editorRef.current?.innerHTML ?? "")
   }
 
-  const handleExportText = () => {
-    const plainText = editorRef.current?.innerText ?? ""
-    const blob = new Blob([plainText], { type: "text/plain;charset=utf-8" })
+  const handleExportDoc = () => {
+    const documentHtml = editorRef.current?.innerHTML ?? ""
+    const wrappedHtml = `<!DOCTYPE html>
+    <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+    <head>
+      <meta charset="utf-8" />
+      <title>Approval Document</title>
+    </head>
+    <body>
+    ${documentHtml}
+    </body>
+    </html>`
+
+    const blob = new Blob([wrappedHtml], { type: "application/msword;charset=utf-8" })
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement("a")
     anchor.href = url
-    anchor.download = "approval-document.txt"
+    const docNumber = payload?.items?.[0]?.evaluation_id ?? "approval-document"
+    anchor.download = `${docNumber}.doc`
     anchor.click()
     URL.revokeObjectURL(url)
   }
@@ -82,7 +94,7 @@ export default function ApproveDocumentPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Button variant="outline" className="bg-white" onClick={handleExportText}>
+          <Button variant="outline" className="bg-white" onClick={handleExportDoc}>
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>

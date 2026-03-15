@@ -13,6 +13,7 @@ export type VendorQuoteItem = {
   unit: string
   unit_price: string
   total_price: string
+  net_price?: string
   vendor_name: string
   net_score?: number
   passed_selection?: boolean
@@ -36,10 +37,16 @@ export const getColumns = (
     },
     {
       accessorKey: "title",
-      header: "Title",
+      header: () => <span className="text-xs">Title</span>,
+      size: 250,
+      maxSize: 350,
       cell: ({ row }) => {
         const title = row.getValue("title") as string
-        return <div className="text-sm font-medium">{title || "-"}</div>
+        return (
+          <div className="max-w-[350px] truncate text-xs font-medium" title={title || "-"}>
+            {title || "-"}
+          </div>
+        )
       },
     },
     {
@@ -72,9 +79,16 @@ export const getColumns = (
     },
     {
       accessorKey: "vendor_name",
-      header: "ร้านค้า",
+      header: () => <span className="text-xs">ร้านค้า</span>,
+      size: 150,
+      maxSize: 170,
       cell: ({ row }) => {
-        return <div className="text-sm text-gray-600">{row.getValue("vendor_name") || "-"}</div>
+        const vendorName = row.getValue("vendor_name") as string
+        return (
+          <div className="max-w-[170px] truncate text-xs text-gray-600" title={vendorName || "-"}>
+            {vendorName || "-"}
+          </div>
+        )
       },
     },
   ]

@@ -5,20 +5,23 @@ import { useRouter } from "next/navigation"
 import { getColumns, QuoteComparison } from "./columns"
 import { DataTable } from "./data-table"
 import { Button } from "@/components/ui/button"
-import { UploadQuotationPopup } from "@/components/UploadQuotationPopup"
 import { AISelectionPopup } from "@/components/AISelectionPopup"
 import { useToast } from "@/components/Toast"
 import { updateMultipleProcessStates, updateVendorQuoteNetPrice } from "@/utils/api"
-import { Filter, Upload, Send, Pencil, Check, X } from "lucide-react"
+import { Filter, Upload, Send, Pencil, Check, X, Play } from "lucide-react"
+
+const DRIVE_UPLOAD_FOLDER_URL = "https://drive.google.com/drive/folders/1tdvwEOaeasFDPg8PI2NY3rU5mVywoKsa"
 
 export default function QuoteComparisonPage() {
   const router = useRouter()
   const [data, setData] = useState<QuoteComparison[]>([])
+  const [isFetchingData, setIsFetchingData] = useState(true)
+  const [isExtracting, setIsExtracting] = useState(false)
+  const [isTriggeringVendorSelection, setIsTriggeringVendorSelection] = useState(false)
   const [processStatus, setProcessStatus] = useState<string | null>(null)
   const [draftData, setDraftData] = useState<QuoteComparison[] | null>(null)
   const [editableVendorMap, setEditableVendorMap] = useState<Record<string, boolean>>({})
   const [isEditMode, setIsEditMode] = useState(false)
-  const [isUploadPopupOpen, setIsUploadPopupOpen] = useState(false)
   const [selectedAIQuote, setSelectedAIQuote] = useState<QuoteComparison | null>(null)
   const [vendorNames, setVendorNames] = useState<string[]>([])
   const [isFilterOpen, setIsFilterOpen] = useState(false)
@@ -83,6 +86,8 @@ export default function QuoteComparisonPage() {
 
   useEffect(() => {
     const fetchVendorQuotes = async () => {
+      setIsFetchingData(true)
+
       try {
         const processResponse = await fetch('/api/get-process-state?processId=3')
         if (processResponse.ok) {
@@ -181,6 +186,8 @@ export default function QuoteComparisonPage() {
         setData(transformedData)
       } catch (error) {
         console.error('Error fetching vendor quotes:', error)
+      } finally {
+        setIsFetchingData(false)
       }
     }
 
@@ -266,10 +273,73 @@ export default function QuoteComparisonPage() {
     }
   }
 
-  const handleUploadFiles = (files: File[]) => {
-    console.log("Files uploaded to Google Drive:", files)
-    // You can add additional logic here after files are uploaded
-    // For example, refresh data, show toast notification, etc.
+  const handleOpenUploadDrive = () => {
+    const newTab = window.open(DRIVE_UPLOAD_FOLDER_URL, "_blank", "noopener,noreferrer")
+    if (!newTab) {
+      showToast("เบราว์เซอร์บล็อกการเปิดแท็บใหม่ กรุณาอนุญาต pop-up", "info")
+    }
+  }
+
+  const handleExtractWorkflow = async () => {
+    if (isPageActionDisabled || isExtracting) {
+      return
+    }
+
+    try {
+      setIsExtracting(true)
+      const response = await fetch("/api/trigger-extract", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          source: "quote-comparison",
+          triggeredAt: new Date().toISOString(),
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to trigger extract workflow")
+      }
+
+      showToast("ส่งคำสั่ง Extract ไปยัง workflow แล้ว", "success")
+    } catch (error) {
+      console.error("Error triggering extract workflow:", error)
+      showToast("เกิดข้อผิดพลาดในการ trigger workflow", "error")
+    } finally {
+      setIsExtracting(false)
+    }
+  }
+
+  const handleTriggerVendorSelectionWorkflow = async () => {
+    if (isPageActionDisabled || isTriggeringVendorSelection) {
+      return
+    }
+
+    try {
+      setIsTriggeringVendorSelection(true)
+      const response = await fetch("/api/trigger-vendor-selection", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          source: "quote-comparison",
+          triggeredAt: new Date().toISOString(),
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to trigger vendor selection workflow")
+      }
+
+      showToast("ส่งคำสั่ง Vendor selection ไปยัง workflow แล้ว", "success")
+    } catch (error) {
+      console.error("Error triggering vendor selection workflow:", error)
+      showToast("เกิดข้อผิดพลาดในการ trigger Vendor selection", "error")
+    } finally {
+      setIsTriggeringVendorSelection(false)
+    }
   }
 
   const handleToggleFilter = (category: 'vendorStatus' | 'selectionStatus', value: string) => {
@@ -287,6 +357,11 @@ export default function QuoteComparisonPage() {
   }
 
   const handleCreateApprovalDocument = async () => {
+    const isConfirmed = window.confirm("ยืนยันการเปลี่ยนสถานะเพื่อสร้างใบอนุมัติจัดซื้อใช่หรือไม่?")
+    if (!isConfirmed) {
+      return
+    }
+
     try {
       await updateMultipleProcessStates([
         { processId: 3, status: "DONE" },
@@ -453,7 +528,16 @@ export default function QuoteComparisonPage() {
     return filters.vendorStatus.length + filters.selectionStatus.length
   }, [filters])
 
-  const isPageActionDisabled = processStatus === "DONE" || processStatus === "PENDING"
+  const visibleData = useMemo(() => {
+    if (processStatus === "PENDING") {
+      return []
+    }
+    return filteredData
+  }, [filteredData, processStatus])
+
+  const visibleTotalCount = processStatus === "PENDING" ? 0 : data.length
+
+  const isPageActionDisabled = isFetchingData || processStatus === "DONE" || processStatus === "PENDING"
 
   return (
     <div className="w-full p-8 bg-gray-50 h-[calc(100vh-80px)]">
@@ -470,9 +554,9 @@ export default function QuoteComparisonPage() {
             <h1 className="text-xl font-bold">เปรียบเทียบใบเสนอราคา</h1>
             <span className="text-blue-600 text-sm">
               <span className="font-semibold">
-                {filteredData.length !== data.length
-                  ? `${filteredData.length} / ${data.length} รายการ`
-                  : `${data.length} รายการ`}
+                {visibleData.length !== visibleTotalCount
+                  ? `${visibleData.length} / ${visibleTotalCount} รายการ`
+                  : `${visibleTotalCount} รายการ`}
               </span>
             </span>
           </div>
@@ -576,11 +660,27 @@ export default function QuoteComparisonPage() {
           </div>
           <Button
             className="bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-400 disabled:hover:bg-gray-200"
-            onClick={() => setIsUploadPopupOpen(true)}
+            onClick={handleOpenUploadDrive}
             disabled={isPageActionDisabled}
           >
             <Upload className="w-4 h-4 mr-2" />
             Upload
+          </Button>
+          <Button
+            className="bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-400 disabled:hover:bg-gray-200"
+            onClick={handleExtractWorkflow}
+            disabled={isPageActionDisabled || isExtracting}
+          >
+            <Play className="w-4 h-4 mr-2" />
+            {isExtracting ? "Extracting..." : "Extract"}
+          </Button>
+          <Button
+            className="bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-400 disabled:hover:bg-gray-200"
+            onClick={handleTriggerVendorSelectionWorkflow}
+            disabled={isPageActionDisabled || isTriggeringVendorSelection}
+          >
+            <Play className="w-4 h-4 mr-2" />
+            {isTriggeringVendorSelection ? "Triggering..." : "Vendor Selection"}
           </Button>
           <Button
             className="bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-400 disabled:hover:bg-gray-200"
@@ -593,13 +693,7 @@ export default function QuoteComparisonPage() {
         </div>
       </div>
 
-      <DataTable columns={columns} data={filteredData} />
-
-      <UploadQuotationPopup
-        open={isUploadPopupOpen}
-        onClose={() => setIsUploadPopupOpen(false)}
-        onUpload={handleUploadFiles}
-      />
+      <DataTable columns={columns} data={visibleData} />
 
       <AISelectionPopup
         open={!!selectedAIQuote}

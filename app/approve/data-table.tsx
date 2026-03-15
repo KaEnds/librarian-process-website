@@ -17,17 +17,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import noRequest from "@/images/no_request.png"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
   isLoading?: boolean
+  showPendingIllustration?: boolean
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
   isLoading = false,
+  showPendingIllustration = false,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 
@@ -85,6 +88,15 @@ export function DataTable<TData, TValue>({
                     <div className="flex items-center justify-center gap-2">
                       <div className="w-5 h-5 border-3 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                       <span className="text-gray-500">กำลังโหลดข้อมูล...</span>
+                    </div>
+                  ) : showPendingIllustration ? (
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-4 px-4 py-10 text-slate-400">
+                      <img
+                        src={noRequest.src}
+                        alt="No quotations"
+                        className="h-auto w-full max-w-[22rem] opacity-60"
+                      />
+                      <span>ขณะนี้ใบเสนอราคายังไม่ถูกส่งเข้ามา</span>
                     </div>
                   ) : (
                     <span className="text-gray-500">ไม่พบข้อมูล</span>

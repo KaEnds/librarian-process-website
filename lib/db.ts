@@ -629,3 +629,105 @@ export const deletePolicy = async (policyId: number): Promise<void> => {
     throw error;
   }
 }
+
+export type WorkflowNotificationRecord = {
+  id: number
+  source: string | null
+  workflow_name: string | null
+  execution_id: string | null
+  status: string
+  message: string | null
+  details: unknown
+  created_at: string
+}
+
+const ensureWorkflowNotificationsTable = async () => {
+  const client = await pool.connect();
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS librairy.workflow_notifications (
+        id BIGSERIAL PRIMARY KEY,
+        source TEXT NULL,
+        workflow_name TEXT NULL,
+        execution_id TEXT NULL,
+        status TEXT NOT NULL,
+        message TEXT NULL,
+        details JSONB NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  } finally {
+    client.release();
+  }
+}
+
+export const createWorkflowNotification = async (
+  input: {
+    source?: string | null
+    workflowName?: string | null
+    executionId?: string | null
+    status: string
+    message?: string | null
+    details?: unknown
+  }
+): Promise<WorkflowNotificationRecord> => {
+  await ensureWorkflowNotificationsTable();
+
+  const client = await pool.connect();
+  try {
+    const query = `
+      INSERT INTO librairy.workflow_notifications (
+        source,
+        workflow_name,
+        execution_id,
+        status,
+        message,
+        details
+      )
+      VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+      RETURNING id, source, workflow_name, execution_id, status, message, details, created_at
+    `;
+
+    const values = [
+      input.source ?? null,
+      input.workflowName ?? null,
+      input.executionId ?? null,
+      input.status,
+      input.message ?? null,
+      JSON.stringify(input.details ?? null),
+    ];
+
+    const result: QueryResult<WorkflowNotificationRecord> = await client.query(query, values);
+    return result.rows[0];
+  } catch (error: any) {
+    console.error('Error creating workflow notification:', error.message);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export const getRecentWorkflowCompletionNotifications = async (
+  limit: number = 100
+): Promise<WorkflowNotificationRecord[]> => {
+  await ensureWorkflowNotificationsTable();
+
+  const client = await pool.connect();
+  try {
+    const query = `
+      SELECT id, source, workflow_name, execution_id, status, message, details, created_at
+      FROM librairy.workflow_notifications
+      WHERE created_at >= CURRENT_TIMESTAMP - INTERVAL '24 hours'
+      ORDER BY created_at DESC
+      LIMIT $1
+    `;
+
+    const result: QueryResult<WorkflowNotificationRecord> = await client.query(query, [limit]);
+    return result.rows;
+  } catch (error: any) {
+    console.error('Error fetching workflow notifications:', error.message);
+    throw error;
+  } finally {
+    client.release();
+  }
+}

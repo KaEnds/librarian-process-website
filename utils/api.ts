@@ -1,4 +1,5 @@
 // API service layer for requests management
+import { addWorkflowStateChangeNotification } from "@/lib/workflow-notifications"
 
 export const updateReviewStatus = async (
   requestId: number,
@@ -38,6 +39,8 @@ export const updateMultipleProcessStates = async (
   await Promise.all(
     updates.map(({ processId, status }) => updateProcessState(processId, status))
   )
+
+  addWorkflowStateChangeNotification(updates)
 }
 
 export const updateVendorQuoteNetPrice = async (

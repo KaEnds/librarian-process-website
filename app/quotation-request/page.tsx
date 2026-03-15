@@ -232,6 +232,11 @@ export default function QuoteRequestPage() {
       showToast('ไม่มีคำร้องถูกปฏิเสธ ไม่จำเป็นต้องเลือกคำร้องใหม่', 'info', 3000)
       return
     }
+
+    const isConfirmed = window.confirm("ยืนยันการเปลี่ยนสถานะเพื่อกลับไปเลือกคำร้องอีกครั้งใช่หรือไม่?")
+    if (!isConfirmed) {
+      return
+    }
     
     try {
       // Update rejected items back to pending
@@ -269,6 +274,15 @@ export default function QuoteRequestPage() {
   const handleToggleCompletion = async () => {
     if (processStatus === "PENDING" || processStatus === null) {
       showToast("ยังไม่สามารถเปลี่ยนสถานะขั้นตอนได้", "info", 3000)
+      return
+    }
+
+    const confirmMessage = processStatus === "DONE"
+      ? "ยืนยันการย้อนสถานะขั้นตอนกลับเป็น IN_PROGRESS ใช่หรือไม่?"
+      : "ยืนยันการเปลี่ยนสถานะขั้นตอนเป็น DONE ใช่หรือไม่?"
+
+    const isConfirmed = window.confirm(confirmMessage)
+    if (!isConfirmed) {
       return
     }
 

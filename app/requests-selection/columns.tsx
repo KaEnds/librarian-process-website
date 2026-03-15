@@ -41,15 +41,18 @@ export const getColumns = (
     {
       accessorKey: "title",
       header: "Title",
+      size: 180,
+      maxSize: 200,
       cell: ({ row }) => {
         const request = row.original
         const isNew = request.request_id ? isRequestNew(request.request_id) : false
+        const title = (row.getValue("title") as string | null) ?? "-"
         return (
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             {isNew && (
               <span className="w-2 h-2 bg-red-500 rounded-full flex-shrink-0"></span>
             )}
-            <div className="font-bold text-sm">{(row.getValue("title") as string | null) ?? "-"}</div>
+            <div className="max-w-[200px] truncate font-bold text-sm" title={title}>{title}</div>
           </div>
         )
       },

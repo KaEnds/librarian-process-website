@@ -56,52 +56,7 @@ export function PurchaseNotePopup({
         </div>
 
         <div className="max-h-[78vh] overflow-y-auto bg-muted/30 p-4">
-          <div className="overflow-hidden rounded-md border border-border bg-background">
-            <div className="max-h-[280px] overflow-y-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-muted/20 text-left text-muted-foreground">
-                    <th className="px-4 py-3 font-medium">No.</th>
-                    <th className="px-4 py-3 font-medium">Title</th>
-                    <th className="px-4 py-3 text-right font-medium">จำนวน</th>
-                    <th className="px-4 py-3 font-medium">หน่วย</th>
-                    <th className="px-4 py-3 text-right font-medium">ราคาต่อหน่วย</th>
-                    <th className="px-4 py-3 text-right font-medium">ราคาสุทธิ</th>
-                    <th className="px-4 py-3 font-medium">ร้านค้า</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.length > 0 ? (
-                    items.map((item, index) => (
-                      <tr key={item.id} className="border-b border-border last:border-b-0">
-                        <td className="px-4 py-3">{index + 1}</td>
-                        <td className="px-4 py-3 font-semibold">{item.title || "-"}</td>
-                        <td className="px-4 py-3 text-right">{item.quantity || 0}</td>
-                        <td className="px-4 py-3">{item.unit || "-"}</td>
-                        <td className="px-4 py-3 text-right">{item.unit_price || "0"}</td>
-                        <td className="px-4 py-3 text-right">{item.total_price || "0"}</td>
-                        <td className="px-4 py-3">{item.vendor_name || "-"}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
-                        ยังไม่มีรายการสำหรับเขียนหมายเหตุ
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="mt-3 flex items-center gap-2 text-sm">
-            <span>เป็นเงินรวมทั้งหมด {totalQuantity.toLocaleString("th-TH")} ชิ้น เป็นเงินทั้งสิ้น</span>
-            <span className="text-3xl font-bold text-blue-600">{totalAmount.toLocaleString("th-TH")}</span>
-            <span>บาท</span>
-          </div>
-
-          <div className="mt-4 rounded-md border border-border bg-background p-4">
+          <div className="rounded-md border border-border bg-background p-4">
             <label className="mb-2 block text-sm font-semibold">หมายเหตุ</label>
             <textarea
               rows={6}
