@@ -144,11 +144,9 @@ export const useBookRequests = (options: UseBookRequestsOptions = {}) => {
     }
 
     syncRequests(false)
-    const interval = setInterval(() => syncRequests(true), 3000)
 
     return () => {
       isMounted = false
-      clearInterval(interval)
     }
   }, [options])
 

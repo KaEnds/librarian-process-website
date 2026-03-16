@@ -267,15 +267,55 @@ export default function ApprovePage() {
     showToast("บันทึกหมายเหตุเรียบร้อย", "success")
   }
 
-  const handleDirectorApprovePurchase = () => {
-    sessionStorage.setItem(NOTE_STORAGE_KEY, purchaseNote)
-    setIsNotePopupOpen(false)
-    showToast("อนุมัติการจัดซื้อเรียบร้อย", "success")
+  const handleDirectorApprovePurchase = async () => {
+    try {
+      const decisionResponse = await fetch('/api/update-purchase-decision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decision: 'APPROVE' }),
+      })
+
+      if (!decisionResponse.ok) {
+        throw new Error('Failed to approve purchase')
+      }
+
+      await updateMultipleProcessStates([
+        { processId: 4, status: 'DONE' },
+      ])
+
+      sessionStorage.setItem(NOTE_STORAGE_KEY, purchaseNote)
+      setIsNotePopupOpen(false)
+      setProcess4Status('DONE')
+      showToast("อนุมัติการจัดซื้อเรียบร้อย", "success")
+    } catch (error) {
+      console.error('Error approving purchase:', error)
+      showToast("เกิดข้อผิดพลาดในการอนุมัติการจัดซื้อ", "error")
+    }
   }
 
-  const handleDirectorRejectPurchase = () => {
-    setIsNotePopupOpen(false)
-    showToast("ไม่อนุมัติการจัดซื้อ", "info")
+  const handleDirectorRejectPurchase = async () => {
+    try {
+      const decisionResponse = await fetch('/api/update-purchase-decision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decision: 'REJECT' }),
+      })
+
+      if (!decisionResponse.ok) {
+        throw new Error('Failed to reject purchase')
+      }
+
+      await updateMultipleProcessStates([
+        { processId: 4, status: 'REJECT' },
+      ])
+
+      setIsNotePopupOpen(false)
+      setProcess4Status('REJECT')
+      showToast("ไม่อนุมัติการจัดซื้อ", "info")
+    } catch (error) {
+      console.error('Error rejecting purchase:', error)
+      showToast("เกิดข้อผิดพลาดในการไม่อนุมัติการจัดซื้อ", "error")
+    }
   }
 
   useEffect(() => {

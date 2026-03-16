@@ -12,6 +12,36 @@ import { Filter, Upload, Send, Pencil, Check, X, Play } from "lucide-react"
 
 const DRIVE_UPLOAD_FOLDER_URL = "https://drive.google.com/drive/folders/1tdvwEOaeasFDPg8PI2NY3rU5mVywoKsa"
 
+const formatThaiDate = (value: string | null | undefined): string | null => {
+  if (!value) return null
+  
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+
+  return new Intl.DateTimeFormat("th-TH-u-ca-buddhist", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(date)
+}
+
+// Normalize vendor names to merge similar ones (e.g., "Booknet Co., Ltd." and "Booknet Co. Ltd.")
+const normalizeVendorName = (name: string): string => {
+  if (!name) return ""
+  return name
+    .trim()
+    .replace(/\s+/g, " ") // Normalize whitespace
+    .replace(/,\s*Ltd\.?(?=\s|$)/gi, " Ltd") // Normalize ", Ltd." or ", Ltd" to " Ltd"
+    .replace(/\s+Ltd\s*\.?\s*$/gi, " Ltd") // Normalize ending variations
+    .toLowerCase()
+}
+
+// Get the best display name for a normalized vendor
+const getDisplayVendorName = (vendorNames: string[], normalizedName: string): string => {
+  const matching = vendorNames.find(name => normalizeVendorName(name) === normalizedName)
+  return matching || normalizedName
+}
+
 export default function QuoteComparisonPage() {
   const router = useRouter()
   const [data, setData] = useState<QuoteComparison[]>([])
@@ -99,36 +129,51 @@ export default function QuoteComparisonPage() {
         const result = await response.json()
         console.log('Vendor Quotes:', result.data)
         
-        // Extract unique vendor names
-        const uniqueVendors = Array.from(
-          new Set(result.data.map((item: any) => item.vendor_name).filter(Boolean))
-        ) as string[]
+        // Extract unique vendor names (normalized to merge similar ones)
+        const allVendorNames = result.data.map((item: any) => item.vendor_name).filter(Boolean)
+        const normalizedToOriginal = new Map<string, string>()
+        
+        allVendorNames.forEach((name: string) => {
+          const normalized = normalizeVendorName(name)
+          if (!normalizedToOriginal.has(normalized)) {
+            normalizedToOriginal.set(normalized, name)
+          }
+        })
+        
+        const uniqueVendors = Array.from(normalizedToOriginal.values())
         console.log('Unique Vendor Names:', uniqueVendors)
         setVendorNames(uniqueVendors)
 
-        // Group data by evaluation_id
-        const groupedByEvaluation = result.data.reduce((acc: any, item: any) => {
-          const evalId = item.evaluation_id
-          if (!acc[evalId]) {
-            acc[evalId] = []
+        // Group data by title to handle cases where evaluation_id is null
+        const groupedByTitle = result.data.reduce((acc: any, item: any) => {
+          const title = item.title || "N/A"
+          if (!acc[title]) {
+            acc[title] = []
           }
-          acc[evalId].push(item)
+          acc[title].push(item)
           return acc
         }, {})
 
         // Transform to QuoteComparison format
-        const transformedData: QuoteComparison[] = Object.entries(groupedByEvaluation).map(
-          ([evalId, items]: [string, any]) => {
+        const transformedData: QuoteComparison[] = Object.entries(groupedByTitle).map(
+          ([title, items]: [string, any], index: number) => {
             const firstItem = items[0]
             
-            // Create vendors object with prices
+            // Generate ID: Use evaluation_id if available, otherwise use the first quote_id or generate index-based ID
+            const generatedId = firstItem.evaluation_id 
+              ? parseInt(firstItem.evaluation_id) 
+              : firstItem.quote_id || (index + 1)
+            
+            // Format batch dates
+            const batchStartDateTh = formatThaiDate(firstItem.batch_start_date)
+            const batchEndDateTh = formatThaiDate(firstItem.batch_end_date)
+            
+            // Create vendors object with prices - only include vendors that have quotes for this title
             const vendors: Record<string, string> = {}
-            uniqueVendors.forEach((vendorName) => {
-              const vendorItem = items.find((i: any) => i.vendor_name === vendorName)
-              if (vendorItem && vendorItem.unit_price) {
-                vendors[vendorName] = `${parseFloat(vendorItem.net_price).toFixed(2)} บาท`
-              } else {
-                vendors[vendorName] = "-"
+            items.forEach((item: any) => {
+              if (item.vendor_name && item.net_price) {
+                const displayName = getDisplayVendorName(uniqueVendors, normalizeVendorName(item.vendor_name))
+                vendors[displayName] = `${parseFloat(item.net_price).toFixed(2)} บาท`
               }
             })
 
@@ -150,24 +195,31 @@ export default function QuoteComparisonPage() {
 
             // Find approved vendor for librarian selection
             const approvedVendor = uniqueItems.find((item: any) => item.review_status === 'APPROVE_REVIEW') as any
-            const librarianSelection = approvedVendor ? approvedVendor.vendor_name : "ยังไม่ได้เลือก"
+            const approvedVendorDisplayName = approvedVendor 
+              ? getDisplayVendorName(uniqueVendors, normalizeVendorName(approvedVendor.vendor_name))
+              : null
+            const librarianSelection = approvedVendorDisplayName || "ยังไม่ได้เลือก"
 
             return {
-              id: parseInt(evalId),
+              id: generatedId,
               title: firstItem.title || "N/A",
               author: firstItem.authors || "N/A",
               vendors,
               aiStatus: "processing" as const,
               librarianSelection,
+              batch_start_date: firstItem.batch_start_date || null,
+              batch_end_date: firstItem.batch_end_date || null,
+              batch_start_date_th: batchStartDateTh,
+              batch_end_date_th: batchEndDateTh,
               aiSelectionDetail: {
-                quoteId: parseInt(evalId),
+                quoteId: generatedId,
                 title: firstItem.title || "N/A",
-                selectedVendor: approvedVendor ? approvedVendor.vendor_name : null,
+                selectedVendor: approvedVendorDisplayName,
                 comparisonRows: uniqueItems.map((item: any, index: number) => ({
                   id: index + 1,
                   quoteId: item.quote_id,
                   quoteIds: item.quoteIds || [item.quote_id],  // All quote IDs for this vendor
-                  vendor: item.vendor_name || "N/A",
+                  vendor: getDisplayVendorName(uniqueVendors, normalizeVendorName(item.vendor_name || "")) || "N/A",
                   unitPrice: item.unit_price ? `${parseFloat(item.unit_price).toFixed(2)} บาท` : "-",
                   discountValue: item.discount_value ? `${parseFloat(item.discount_value).toFixed(2)}` : "-",
                   netPrice: item.net_price ? `${parseFloat(item.net_price).toFixed(2)} บาท` : "-",
@@ -539,12 +591,23 @@ export default function QuoteComparisonPage() {
 
   const isPageActionDisabled = isFetchingData || processStatus === "DONE" || processStatus === "PENDING"
 
+  // Get batch date range from first item
+  const batchDateRange = data.length > 0 
+    ? (() => {
+        const firstItem = data[0]
+        if (firstItem.batch_start_date_th && firstItem.batch_end_date_th) {
+          return `${firstItem.batch_start_date_th} - ${firstItem.batch_end_date_th}`
+        }
+        return null
+      })()
+    : null
+
   return (
     <div className="w-full p-8 bg-gray-50 h-[calc(100vh-80px)]">
       <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
         <div className="flex items-center gap-2">
           <span className="text-red-600 font-semibold">กำหนดการ</span>
-          <span className="text-sm text-gray-600">6 ตุลาคม 2568 - 10 ตุลาคม 2568</span>
+          <span className="text-sm text-gray-600">{batchDateRange || "ยังไม่มีข้อมูล"}</span>
         </div>
       </div>
 
@@ -560,7 +623,7 @@ export default function QuoteComparisonPage() {
               </span>
             </span>
           </div>
-          <p className="text-sm text-gray-600">ประจำวันที่ 7 ตุลาคม 2568 - 9 ตุลาคม 2568</p>
+          <p className="text-sm text-gray-600">ประจำวันที่ {batchDateRange || "ยังไม่มีข้อมูล"}</p>
         </div>
 
         <div className="flex gap-3">

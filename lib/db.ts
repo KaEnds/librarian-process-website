@@ -186,6 +186,27 @@ export const getWebUserById = async (userId: number): Promise<RegisterWebUserRec
   }
 }
 
+export const getAllWebUsers = async (): Promise<RegisterWebUserRecord[]> => {
+  let client;
+  try {
+    client = await pool.connect();
+
+    const query = `
+      SELECT user_id, TRIM(username) AS username, user_role, account_status, name, surname
+      FROM librairy.web_user
+      ORDER BY user_id ASC
+    `;
+
+    const result: QueryResult<RegisterWebUserRecord> = await client.query(query);
+    return result.rows;
+  } catch (error: unknown) {
+    console.error('Error fetching all web users:', error);
+    throw error;
+  } finally {
+    client?.release();
+  }
+}
+
 export const getBookRequestsByBatches = async (since?: string): Promise<any[]> => {
   try {
     const client = await pool.connect();
@@ -437,22 +458,26 @@ export const getAllVendorQuotes = async (): Promise<any[]> => {
 
     const query = `
       SELECT DISTINCT ON (vq.quote_id)
-        vq.*,
-        pe.net_score, 
-        pe.passed_selection,
-        ad.*,
-        b.batch_id,
-        b.status AS batch_status,
-        b.batch_start_date,
-        b.batch_end_date
+          vq.*,
+          pe.net_score, 
+          pe.passed_selection,
+          ad.*,
+          b.batch_id,
+          b.status AS batch_status,
+          b.batch_start_date,
+          b.batch_end_date,
+          pa.*
       FROM librairy.vendor_quotes vq
       LEFT JOIN librairy.policy_evaluations pe 
-        ON vq.evaluation_id = pe.evaluation_id
+          ON vq.evaluation_id = pe.evaluation_id
       LEFT JOIN librairy.acquisition_decisions ad 
-        ON pe.evaluation_id = ad.evaluation_id
+          ON pe.evaluation_id = ad.evaluation_id
       LEFT JOIN librairy.batches b 
-        ON pe.batch_id = b.batch_id
-      ORDER BY vq.quote_id
+          ON pe.batch_id = b.batch_id
+      LEFT JOIN librairy.purchase_approvals pa 
+          ON ad.approval_id = pa.approval_id 
+      WHERE (CURRENT_TIMESTAMP - INTERVAL '7 days') BETWEEN b.batch_start_date AND b.batch_end_date
+      ORDER BY vq.quote_id;
     `;
 
     const result: QueryResult<any> = await client.query(query);
@@ -516,6 +541,50 @@ export const updateMultipleVendorQuoteReviewStatus = async (
   } catch (error: any) {
     console.error('Error updating multiple vendor quote review statuses:', error.message);
     throw error;
+  }
+}
+
+export type PurchaseDecision = 'APPROVE' | 'REJECT' | 'WAIT_FOR_APPROVAL'
+
+export const updatePurchaseDecisionByApprovedQuotes = async (
+  decision: PurchaseDecision,
+): Promise<number> => {
+  let client;
+  try {
+    client = await pool.connect();
+
+    // Update purchase_decision using 3-table relation:
+    // vendor_quotes -> acquisition_decisions -> purchase_approvals
+    // Also joins policy_evaluations and batches to filter by batch_id
+    const query = `
+      UPDATE librairy.purchase_approvals
+      SET purchase_decision = $1,
+          decided_at = CURRENT_TIMESTAMP
+      WHERE approval_id IN (
+        SELECT DISTINCT ad.approval_id
+        FROM librairy.vendor_quotes vq
+        JOIN librairy.acquisition_decisions ad
+          ON ad.evaluation_id = vq.evaluation_id
+        JOIN librairy.purchase_approvals pa
+          ON pa.approval_id = ad.approval_id
+        JOIN librairy.policy_evaluations pe
+          ON vq.evaluation_id = pe.evaluation_id
+        JOIN librairy.batches b
+          ON pe.batch_id = b.batch_id
+        WHERE vq.review_status = 'APPROVE_REVIEW'
+          AND (CURRENT_TIMESTAMP - INTERVAL '7 days') BETWEEN b.batch_start_date AND b.batch_end_date
+      )
+      RETURNING approval_id
+    `;
+
+    const result: QueryResult<any> = await client.query(query, [decision]);
+    console.log(`Updated purchase_decision to ${decision} for ${result.rowCount} approval(s)`);
+    return result.rowCount ?? 0;
+  } catch (error: any) {
+    console.error('Error updating purchase decision:', error.message);
+    throw error;
+  } finally {
+    client?.release();
   }
 }
 

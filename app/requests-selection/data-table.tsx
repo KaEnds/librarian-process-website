@@ -17,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import noRequest from "@/images/no_request.png"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -79,15 +80,22 @@ export function DataTable<TData, TValue>({
                 </TableRow>
               ))
             ) : (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
+              <TableRow className="h-full">
+                <TableCell colSpan={columns.length} className="h-full p-0 text-center align-middle">
                   {isLoading ? (
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="w-5 h-5 border-3 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                      <span className="text-gray-500">กำลังโหลดข้อมูล...</span>
+                    <div className="flex h-full w-full items-center justify-center gap-2 px-4 py-10 text-gray-500">
+                      <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+                      <span>กำลังโหลดข้อมูล...</span>
                     </div>
                   ) : (
-                    <span className="text-gray-500">ไม่พบข้อมูล</span>
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-4 px-4 py-10 text-slate-400">
+                      <img
+                        src={noRequest.src}
+                        alt="No requests"
+                        className="h-auto w-full max-w-[22rem] opacity-60"
+                      />
+                      <span>ขณะนี้ยังไม่มีคำร้องถูกส่งเข้ามา</span>
+                    </div>
                   )}
                 </TableCell>
               </TableRow>

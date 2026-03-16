@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
-const VENDOR_SELECTION_WEBHOOK_URL = "https://n8n.librairy.work/webhook-test/62c21077-a164-4efa-b201-4da8a523d0c0"
+const VENDOR_SELECTION_WEBHOOK_URL = "https://n8n.librairy.work/webhook/62c21077-a164-4efa-b201-4da8a523d0c0"
 
 export async function POST(request: NextRequest) {
   try {

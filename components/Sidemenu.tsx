@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { ChevronDown, Home, Grid2X2, FileText, Users, Bell, Settings, HelpCircle, Book } from 'lucide-react'
+import { ChevronDown, Home, Grid2X2, FileText, Users, Bell, Settings, HelpCircle, Book, UserCog } from 'lucide-react'
 import librairy_logo from '../images/librairy_logo.png'
 import { useToast } from '@/components/Toast'
 import { logoutUser } from '@/actions/auth'
@@ -20,6 +20,7 @@ function Sidemenu() {
   const [openWorkflow, setOpenWorkflow] = useState(false)
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0)
   const [currentProcessId, setCurrentProcessId] = useState<number | null>(null)
+  const [userRole, setUserRole] = useState<string | null>(null)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
@@ -103,6 +104,32 @@ function Sidemenu() {
     return () => {
       isMounted = false
       clearInterval(interval)
+    }
+  }, [])
+
+  useEffect(() => {
+    let isMounted = true
+
+    const fetchCurrentUser = async () => {
+      try {
+        const response = await fetch('/api/my-account')
+        if (!response.ok) {
+          return
+        }
+
+        const payload = await response.json()
+        if (isMounted) {
+          setUserRole(typeof payload?.user?.user_role === 'string' ? payload.user.user_role : null)
+        }
+      } catch (error) {
+        console.error('Error fetching current user in sidemenu:', error)
+      }
+    }
+
+    fetchCurrentUser()
+
+    return () => {
+      isMounted = false
     }
   }, [])
 
@@ -212,6 +239,18 @@ function Sidemenu() {
               Policies
             </Link>
           </div>
+
+          {userRole?.toLowerCase() === 'admin' && (
+            <div className="mb-3">
+              <Link
+                href="/accountManage"
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition ${isActive("/accountManage") ? "bg-slate-800 text-white" : "text-slate-200 hover:bg-slate-800"}`}
+              >
+                <UserCog className="w-5 h-5" />
+                จัดการผู้ใช้
+              </Link>
+            </div>
+          )}
         </div>
 
         {/* ข้อมูลย้อนหลัง Section */}

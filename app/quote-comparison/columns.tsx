@@ -12,6 +12,10 @@ export type QuoteComparison = {
   aiStatus: "complete" | "processing" | "rejected"
   librarianSelection: string
   aiSelectionDetail: AISelectionPopupData
+  batch_start_date?: string | null
+  batch_end_date?: string | null
+  batch_start_date_th?: string | null
+  batch_end_date_th?: string | null
 }
 
 const AIStatusBadge = ({ status }: { status: QuoteComparison["aiStatus"] }) => {

@@ -51,6 +51,8 @@ const Workflow = () => {
         return 'In Progress';
       case 'PENDING':
         return 'Pending';
+      case 'REJECT':
+        return 'Rejected';
       default:
         return 'Pending';
     }
@@ -162,6 +164,7 @@ const Workflow = () => {
               <div className={`relative w-20 h-20 rounded-full flex items-center justify-center border-4 mb-3 transition-all duration-300
                 ${step.status === 'Done' ? 'border-green-500 bg-green-50 text-green-600' : 
                   step.status === 'In Progress' ? 'border-pink-400 bg-pink-400 text-white animate-pulse-glow' : 
+                  step.status === 'Rejected' ? 'border-red-500 bg-red-50 text-red-600' :
                   'border-gray-300 bg-gray-50 text-gray-400'}`}>
                 {step.status === 'In Progress' && (
                   <>
@@ -181,6 +184,7 @@ const Workflow = () => {
               <span className={`px-4 py-1 rounded-full text-xs font-medium
                 ${step.status === 'Done' ? 'bg-green-100 text-green-600' : 
                   step.status === 'In Progress' ? 'bg-blue-100 text-blue-600' : 
+                  step.status === 'Rejected' ? 'bg-red-100 text-red-600' :
                   'bg-gray-200 text-gray-500'}`}>
                 • {step.status}
               </span>
@@ -197,7 +201,9 @@ const Workflow = () => {
                       ? 'text-green-500'
                       : nextStep?.status === 'In Progress'
                         ? 'arrow-active'
-                        : 'text-gray-400';
+                        : nextStep?.status === 'Rejected'
+                          ? 'text-red-500'
+                          : 'text-gray-400';
 
                   return (
                 <svg

@@ -137,6 +137,8 @@ function Topmenu() {
         return 'In Progress'
       case 'PENDING':
         return 'Pending'
+      case 'REJECT':
+        return 'Rejected'
       default:
         return 'Pending'
     }
@@ -262,7 +264,9 @@ function Topmenu() {
                     ? 'border-green-500 bg-green-50 text-green-600'
                     : step.status === 'In Progress'
                       ? 'border-pink-400 bg-pink-400 text-white animate-pulse-glow'
-                      : 'border-gray-300 bg-gray-50 text-gray-400'
+                      : step.status === 'Rejected'
+                        ? 'border-red-500 bg-red-50 text-red-600'
+                        : 'border-gray-300 bg-gray-50 text-gray-400'
                 }`}>
                 {step.status === 'In Progress' && (
                   <>
@@ -281,7 +285,9 @@ function Topmenu() {
                       ? 'text-green-500'
                       : steps[index + 1]?.status === 'In Progress'
                         ? 'arrow-active'
-                        : 'text-gray-400'
+                        : steps[index + 1]?.status === 'Rejected'
+                          ? 'text-red-500'
+                          : 'text-gray-400'
                   }`}
                 >
                   →

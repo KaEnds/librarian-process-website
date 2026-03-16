@@ -436,10 +436,11 @@ export default function QuoteRequestPage() {
             Export
           </Button>
           <Button
-            className={`text-white ${
+            variant="outline"
+            className={`${
               isReturnSelectionDisabled
-                ? "bg-gray-400 cursor-not-allowed"
-                : "bg-blue-600 hover:bg-blue-700"
+                ? "bg-gray-400 text-white cursor-not-allowed"
+                : "bg-white text-black hover:bg-gray-100"
             }`}
             onClick={handleReturnSelection}
             disabled={isReturnSelectionDisabled}

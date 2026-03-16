@@ -1,290 +1,289 @@
 "use client"
 
-import React, { useState, useMemo } from "react"
-import { Search, Trash2, ShieldAlert, Check, X, Shield, UserCog } from "lucide-react"
-import { useToast } from "@/components/Toast"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
+import { Shield, ShieldAlert, UserCog, X } from "lucide-react"
+import { useToast } from "@/components/Toast"
+import { getColumns, getStatusBadge, type Account, type UserRole } from "./columns"
+import { DataTable } from "./data-table"
 
-// --- Types (ปรับให้ตรงกับ Backend API) ---
-type UserRole = "admin" | "head" | "librarian" | "user"
-type AccountStatus = "active" | "pending" | "inactive"
-
-interface Account {
-  id: string | number
+type AccountApiRecord = {
+  user_id: number
   username: string
+  user_role: string
+  account_status: string
   name: string
   surname: string
-  userRole: UserRole
-  accountStatus: AccountStatus
 }
 
-// --- Mock Data (จำลองข้อมูลที่ได้จาก API) ---
-const initialAccounts: Account[] = [
-  { id: 1, username: "somchai_lib", name: "สมชาย", surname: "บรรณารักษ์", userRole: "librarian", accountStatus: "active" },
-  { id: 2, username: "wipada_h", name: "วิภาดา", surname: "หัวหน้าฝ่าย", userRole: "head", accountStatus: "active" },
-  { id: 3, username: "new_user01", name: "สมเกียรติ", surname: "สมัครใหม่", userRole: "user", accountStatus: "pending" },
-  { id: 4, username: "kittipong_k", name: "กิตติพงษ์", surname: "ใจดี", userRole: "librarian", accountStatus: "active" },
-  { id: 5, username: "admin_system", name: "ผู้ดูแล", surname: "ระบบ", userRole: "admin", accountStatus: "active" },
-]
+const normalizeRole = (role: string): UserRole => {
+  const r = role.toLowerCase()
+  if (r === "admin") return "admin"
+  if (r === "head") return "head"
+  if (r === "librarian") return "librarian"
+  if (r === "director") return "director"
+  return "user"
+}
+
+const normalizeStatus = (status: string) => {
+  const s = status.toLowerCase()
+  if (s === "active") return "active" as const
+  if (s === "pending") return "pending" as const
+  return "inactive" as const
+}
 
 export default function AccountManagementPage() {
-  // หาก Component useToast ของคุณไม่มี ให้ใช้ alert() แทนชั่วคราวได้ครับ
   const { showToast } = useToast()
-  
-  // --- States ---
-  const [accounts, setAccounts] = useState<Account[]>(initialAccounts)
-  const [searchTerm, setSearchTerm] = useState("")
-  
-  // Modal States
+
+  const [accounts, setAccounts] = useState<Account[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false)
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null)
   const [newRole, setNewRole] = useState<UserRole>("user")
 
-  // --- Functions ---
-  
-  // กรองข้อมูลจาก Username, Name, Surname
-  const filteredAccounts = useMemo(() => {
-    return accounts.filter(acc => 
-      acc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      acc.surname.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      acc.username.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  }, [accounts, searchTerm])
+  const [confirmDeleteAccount, setConfirmDeleteAccount] = useState<Account | null>(null)
 
-  // อนุมัติผู้ใช้ใหม่ (Pending -> Active)
-  const handleApprove = (id: string | number) => {
-    setAccounts(accounts.map(acc => 
-      acc.id === id ? { ...acc, accountStatus: "active" } : acc
-    ))
-    showToast("อนุมัติบัญชีผู้ใช้งานแล้ว", "success", 3000)
-  }
-
-  // ลบบัญชีผู้ใช้ (ลบออกจาก State)
-  const handleDelete = (id: string | number, fullName: string) => {
-    if (confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบบัญชีของ "${fullName}" ?\nการกระทำนี้ไม่สามารถย้อนกลับได้`)) {
-      setAccounts(accounts.filter(acc => acc.id !== id))
-      showToast("ลบบัญชีสำเร็จ", "success", 3000)
+  const fetchAccounts = useCallback(async () => {
+    setIsLoading(true)
+    try {
+      const response = await fetch("/api/account-manage")
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.message || "ไม่สามารถโหลดข้อมูลบัญชีผู้ใช้งานได้")
+      }
+      const payload = await response.json()
+      const mapped: Account[] = Array.isArray(payload?.users)
+        ? payload.users.map((record: AccountApiRecord) => ({
+            id: record.user_id,
+            username: record.username,
+            name: record.name,
+            surname: record.surname,
+            userRole: normalizeRole(record.user_role || "user"),
+            accountStatus: normalizeStatus(record.account_status || "inactive"),
+          }))
+        : []
+      setAccounts(mapped)
+    } catch (error) {
+      console.error("Error fetching accounts:", error)
+      showToast(
+        error instanceof Error ? error.message : "เกิดข้อผิดพลาดในการดึงข้อมูล",
+        "error",
+        3000
+      )
+    } finally {
+      setIsLoading(false)
     }
-  }
+  }, [showToast])
 
-  // เปิด Modal เพื่อดูรายละเอียดและปรับ Role
-  const openRoleModal = (account: Account) => {
+  useEffect(() => {
+    fetchAccounts()
+  }, [fetchAccounts])
+
+  const handleApproveClick = useCallback((account: Account) => {
+    setAccounts((prev) =>
+      prev.map((acc) =>
+        acc.id === account.id ? { ...acc, accountStatus: "active" } : acc
+      )
+    )
+    showToast("อนุมัติบัญชีผู้ใช้งานแล้ว", "success", 3000)
+  }, [showToast])
+
+  const handleEditClick = useCallback((account: Account) => {
     setSelectedAccount(account)
     setNewRole(account.userRole)
     setIsRoleModalOpen(true)
-  }
+  }, [])
 
-  // บันทึก Role ใหม่
-  const handleSaveRole = () => {
-    if (selectedAccount) {
-      setAccounts(accounts.map(acc => 
+  const handleDeleteClick = useCallback((account: Account) => {
+    setConfirmDeleteAccount(account)
+  }, [])
+
+  const handleConfirmDelete = useCallback(() => {
+    if (!confirmDeleteAccount) return
+    const target = confirmDeleteAccount
+    setConfirmDeleteAccount(null)
+    setAccounts((prev) => prev.filter((acc) => acc.id !== target.id))
+    showToast("ลบบัญชีสำเร็จ", "success", 3000)
+  }, [confirmDeleteAccount, showToast])
+
+  const handleSaveRole = useCallback(() => {
+    if (!selectedAccount) return
+    setAccounts((prev) =>
+      prev.map((acc) =>
         acc.id === selectedAccount.id ? { ...acc, userRole: newRole } : acc
-      ))
-      showToast(`ปรับสิทธิ์ ${selectedAccount.name} เป็น ${newRole} สำเร็จ`, "success", 3000)
-      setIsRoleModalOpen(false)
-      setSelectedAccount(null)
-    }
-  }
+      )
+    )
+    showToast(`ปรับสิทธิ์ ${selectedAccount.name} เป็น ${newRole} สำเร็จ`, "success", 3000)
+    setIsRoleModalOpen(false)
+    setSelectedAccount(null)
+  }, [selectedAccount, newRole, showToast])
 
   // --- Helper UI Functions ---
   const getRoleBadge = (role: UserRole) => {
     switch (role) {
       case "head": return <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1 w-fit"><ShieldAlert size={12}/> Head</span>
       case "librarian": return <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1 w-fit"><Shield size={12}/> Librarian</span>
+      case "director": return <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1 w-fit"><ShieldAlert size={12}/> Director</span>
       case "admin": return <span className="bg-slate-800 text-white px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1 w-fit"><UserCog size={12}/> Admin</span>
       default: return <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs font-semibold w-fit">User</span>
     }
   }
 
-  const getStatusBadge = (status: AccountStatus) => {
-    switch (status) {
-      case "active": return <span className="bg-green-50 text-green-600 border border-green-200 px-3 py-1 rounded-full text-[11px] font-bold flex items-center gap-1.5 w-fit"><span className="w-1.5 h-1.5 rounded-full bg-green-500"/> Active</span>
-      case "pending": return <span className="bg-yellow-50 text-yellow-600 border border-yellow-200 px-3 py-1 rounded-full text-[11px] font-bold flex items-center gap-1.5 w-fit"><span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse"/> Pending</span>
-      case "inactive": return <span className="bg-red-50 text-red-600 border border-red-200 px-3 py-1 rounded-full text-[11px] font-bold flex items-center gap-1.5 w-fit"><span className="w-1.5 h-1.5 rounded-full bg-red-500"/> Inactive</span>
-    }
-  }
+  const columns = useMemo(
+    () => getColumns(handleApproveClick, handleEditClick, handleDeleteClick),
+    [handleApproveClick, handleEditClick, handleDeleteClick]
+  )
 
   return (
-    <div className="w-full p-8 bg-slate-50 min-h-[calc(100vh-80px)] font-sans">
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        
-        {/* Header & Search */}
-        <div className="p-6 flex flex-col md:flex-row justify-between items-start md:items-center border-b border-gray-100 gap-4">
+    <div className="w-full p-8 bg-gray-50 h-[calc(100vh-80px)]">
+      <div className="border border-gray-200 bg-white rounded-lg shadow-sm">
+        {/* Header */}
+        <div className="p-5 flex justify-between items-center border-b border-gray-100">
           <div>
-            <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-              จัดการบัญชีผู้ใช้งาน 
-              <span className="text-blue-500 bg-blue-50 px-2 py-0.5 rounded-md font-medium text-sm ml-2">
-                {filteredAccounts.length} บัญชี
-              </span>
-            </h1>
-            <p className="text-gray-400 text-sm mt-1">อนุมัติ ลบ หรือกำหนดสิทธิ์การใช้งาน (Role) ให้กับบุคลากร</p>
-          </div>
-          
-          <div className="flex items-center">
-            <div className="relative border border-gray-200 rounded-lg px-3 py-2 flex items-center bg-gray-50 focus-within:bg-white focus-within:border-blue-400 transition-all w-64">
-              <Search size={18} className="text-gray-400 mr-2" />
-              <input 
-                type="text" 
-                placeholder="ค้นหาชื่อ หรือ Username..." 
-                className="bg-transparent text-sm outline-none w-full text-gray-700"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
+            <h1 className="text-xl font-bold text-gray-800">จัดการบัญชีผู้ใช้งาน</h1>
+            <p className="text-sm text-gray-500 mt-1">อนุมัติ ลบ หรือกำหนดสิทธิ์การใช้งาน (Role) ให้กับบุคลากร</p>
           </div>
         </div>
 
-        {/* Data Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-gray-50/50 text-gray-500 text-xs uppercase font-semibold">
-              <tr>
-                <th className="px-6 py-4 w-16 text-center">ID</th>
-                <th className="px-6 py-4">Username</th>
-                <th className="px-6 py-4">ชื่อ-นามสกุล</th>
-                <th className="px-6 py-4">สิทธิ์ (Role)</th>
-                <th className="px-6 py-4">สถานะ (Status)</th>
-                <th className="px-6 py-4 text-center">จัดการ</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 text-sm">
-              {filteredAccounts.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-gray-400 italic">ไม่พบข้อมูลบัญชีผู้ใช้งาน</td>
-                </tr>
-              ) : (
-                filteredAccounts.map((account) => (
-                  <tr key={account.id} className="hover:bg-gray-50/50 transition-colors group">
-                    <td className="px-6 py-4 text-center text-gray-400">{account.id}</td>
-                    <td className="px-6 py-4 text-gray-500 font-mono text-xs">{account.username}</td>
-                    <td className="px-6 py-4 font-medium text-gray-700">{account.name} {account.surname}</td>
-                    <td className="px-6 py-4">{getRoleBadge(account.userRole)}</td>
-                    <td className="px-6 py-4">{getStatusBadge(account.accountStatus)}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-center gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
-                        
-                        {/* อนุมัติ: แสดงเมื่อสถานะเป็น pending */}
-                        {account.accountStatus === "pending" && (
-                          <button onClick={() => handleApprove(account.id)} className="p-1.5 text-green-600 hover:bg-green-100 rounded-md transition-colors" title="อนุมัติบัญชี">
-                            <Check size={18} />
-                          </button>
-                        )}
-
-                        {/* ดูข้อมูล/ตั้งค่า: แสดงเมื่อสถานะเป็น active */}
-                        {account.accountStatus === "active" && (
-                          <button onClick={() => openRoleModal(account)} className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors" title="ดูข้อมูล / เปลี่ยน Role">
-                            <UserCog size={18} />
-                          </button>
-                        )}
-
-                        {/* ลบ: กดลบได้ทุกคน */}
-                        <button onClick={() => handleDelete(account.id, `${account.name} ${account.surname}`)} className="p-1.5 text-red-500 hover:bg-red-100 rounded-md transition-colors" title="ลบบัญชี">
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+        {/* Table */}
+        <div className="p-4">
+          <DataTable columns={columns} data={accounts} isLoading={isLoading} />
         </div>
       </div>
 
-      {/* Modal: ดูข้อมูลส่วนตัว & จัดการสิทธิ์ (Role Management) */}
+      {/* Modal: ดูข้อมูล & จัดการสิทธิ์ */}
       {isRoleModalOpen && selectedAccount && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            
-            {/* Modal Header */}
-            <div className="relative p-6 border-b border-gray-100 bg-slate-50">
-              <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                <UserCog className="text-blue-600" /> ข้อมูลบัญชีผู้ใช้งาน
-              </h2>
-              <button 
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setIsRoleModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-md overflow-hidden rounded-md border border-border bg-background"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-border bg-background px-5 py-3">
+              <h3 className="text-base font-semibold flex items-center gap-2">
+                <UserCog size={18} className="text-blue-600" />
+                ข้อมูลบัญชีผู้ใช้งาน
+              </h3>
+              <button
+                type="button"
                 onClick={() => setIsRoleModalOpen(false)}
-                className="absolute right-5 top-6 text-gray-400 hover:text-gray-600 transition-colors"
+                className="text-gray-400 hover:text-gray-600 transition-colors"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
-            {/* Modal Body */}
-            <div className="p-6 space-y-5">
-              
-              {/* Card ข้อมูลที่ได้มาจากการ Register */}
-              <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
-                <div className="grid grid-cols-3 gap-2 text-sm border-b border-gray-100 pb-2">
-                  <span className="text-gray-500 col-span-1">Username:</span>
+            <div className="bg-muted/30 p-4 space-y-4">
+              {/* ข้อมูลผู้ใช้ */}
+              <div className="rounded-md border border-border bg-background p-4 space-y-3">
+                <div className="grid grid-cols-3 gap-2 text-sm border-b border-border pb-2">
+                  <span className="text-muted-foreground">Username:</span>
                   <span className="font-mono text-gray-800 col-span-2 font-medium">{selectedAccount.username}</span>
                 </div>
-                <div className="grid grid-cols-3 gap-2 text-sm border-b border-gray-100 pb-2">
-                  <span className="text-gray-500 col-span-1">ชื่อ-นามสกุล:</span>
-                  <span className="text-gray-800 col-span-2 font-medium">{selectedAccount.name} {selectedAccount.surname}</span>
+                <div className="grid grid-cols-3 gap-2 text-sm border-b border-border pb-2">
+                  <span className="text-muted-foreground">ชื่อ-นามสกุล:</span>
+                  <span className="text-gray-800 col-span-2 font-medium">
+                    {selectedAccount.name} {selectedAccount.surname}
+                  </span>
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-sm">
-                  <span className="text-gray-500 col-span-1">สถานะ:</span>
+                  <span className="text-muted-foreground">สถานะ:</span>
                   <span className="col-span-2">{getStatusBadge(selectedAccount.accountStatus)}</span>
                 </div>
               </div>
 
-              {/* ส่วนแก้ไข Role (Radio buttons) */}
+              {/* แก้ไข Role */}
               <div>
-                <label className="block text-sm font-semibold text-gray-800 mb-3">แก้ไขระดับสิทธิ์ (Role)</label>
+                <p className="text-sm font-semibold text-gray-800 mb-3">แก้ไขระดับสิทธิ์ (Role)</p>
                 <div className="space-y-2">
-                  
-                  {/* Admin Role */}
-                  <label className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${newRole === 'admin' ? 'border-slate-800 bg-slate-50' : 'border-gray-200 hover:bg-gray-50'}`}>
-                    <input type="radio" name="role" value="admin" checked={newRole === 'admin'} onChange={() => setNewRole('admin')} className="mr-3 w-4 h-4 text-slate-800" />
-                    <div>
-                      <p className="font-medium text-slate-800 flex items-center gap-1"><UserCog size={14}/> Admin</p>
-                      <p className="text-xs text-gray-500">ผู้ดูแลระบบ - จัดการบัญชีผู้ใช้และระบบได้ทั้งหมด</p>
-                    </div>
-                  </label>
-
-                  {/* Head Role */}
-                  <label className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${newRole === 'head' ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:bg-gray-50'}`}>
-                    <input type="radio" name="role" value="head" checked={newRole === 'head'} onChange={() => setNewRole('head')} className="mr-3 w-4 h-4 text-purple-600" />
-                    <div>
-                      <p className="font-medium text-purple-700 flex items-center gap-1"><ShieldAlert size={14}/> Head</p>
-                      <p className="text-xs text-gray-500">หัวหน้าห้องสมุด - สิทธิ์สูงสุดในการอนุมัติคำร้องจัดซื้อ</p>
-                    </div>
-                  </label>
-
-                  {/* Librarian Role */}
-                  <label className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${newRole === 'librarian' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}>
-                    <input type="radio" name="role" value="librarian" checked={newRole === 'librarian'} onChange={() => setNewRole('librarian')} className="mr-3 w-4 h-4 text-blue-600" />
-                    <div>
-                      <p className="font-medium text-blue-700 flex items-center gap-1"><Shield size={14}/> Librarian</p>
-                      <p className="text-xs text-gray-500">บรรณารักษ์ - จัดการคำร้องหนังสือและใบเสนอราคาร้านค้า</p>
-                    </div>
-                  </label>
-
-                  {/* User Role */}
-                  <label className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${newRole === 'user' ? 'border-gray-500 bg-gray-100' : 'border-gray-200 hover:bg-gray-50'}`}>
-                    <input type="radio" name="role" value="user" checked={newRole === 'user'} onChange={() => setNewRole('user')} className="mr-3 w-4 h-4 text-gray-600" />
-                    <div>
-                      <p className="font-medium text-gray-700">User</p>
-                      <p className="text-xs text-gray-500">ผู้ใช้งานทั่วไป (รอกำหนดสิทธิ์เพิ่มเติม)</p>
-                    </div>
-                  </label>
-
+                  {(
+                    [
+                      { value: "admin" as UserRole, label: "Admin", desc: "ผู้ดูแลระบบ - จัดการบัญชีผู้ใช้และระบบได้ทั้งหมด", active: "border-slate-800 bg-slate-50", text: "text-slate-800", icon: <UserCog size={14} /> },
+                      { value: "head" as UserRole, label: "Head", desc: "หัวหน้าห้องสมุด - สิทธิ์สูงสุดในการอนุมัติคำร้องจัดซื้อ", active: "border-purple-500 bg-purple-50", text: "text-purple-700", icon: <ShieldAlert size={14} /> },
+                      { value: "librarian" as UserRole, label: "Librarian", desc: "บรรณารักษ์ - จัดการคำร้องหนังสือและใบเสนอราคาร้านค้า", active: "border-blue-500 bg-blue-50", text: "text-blue-700", icon: <Shield size={14} /> },
+                      { value: "director" as UserRole, label: "Director", desc: "ผู้อำนวยการ - อนุมัติขั้นสุดท้าย", active: "border-amber-500 bg-amber-50", text: "text-amber-700", icon: <ShieldAlert size={14} /> },
+                      { value: "user" as UserRole, label: "User", desc: "ผู้ใช้งานทั่วไป (รอกำหนดสิทธิ์เพิ่มเติม)", active: "border-gray-500 bg-gray-100", text: "text-gray-700", icon: null },
+                    ]
+                  ).map(({ value, label, desc, active, text, icon }) => (
+                    <label
+                      key={value}
+                      className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${newRole === value ? active : "border-gray-200 hover:bg-gray-50"}`}
+                    >
+                      <input
+                        type="radio"
+                        name="role"
+                        value={value}
+                        checked={newRole === value}
+                        onChange={() => setNewRole(value)}
+                        className="mr-3 w-4 h-4"
+                      />
+                      <div>
+                        <p className={`font-medium ${text} flex items-center gap-1`}>
+                          {icon} {label}
+                        </p>
+                        <p className="text-xs text-gray-500">{desc}</p>
+                      </div>
+                    </label>
+                  ))}
                 </div>
               </div>
+
+              <div className="flex justify-end gap-3">
+                <Button variant="outline" onClick={() => setIsRoleModalOpen(false)}>
+                  ยกเลิก
+                </Button>
+                <Button
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  onClick={handleSaveRole}
+                  disabled={newRole === selectedAccount.userRole}
+                >
+                  บันทึกสิทธิ์
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Delete Dialog */}
+      {confirmDeleteAccount !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setConfirmDeleteAccount(null)}
+        >
+          <div
+            className="w-full max-w-md overflow-hidden rounded-md border border-border bg-background"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-border bg-background px-5 py-3">
+              <h3 className="text-base font-semibold">ยืนยันการลบ</h3>
             </div>
 
-            {/* Modal Footer */}
-            <div className="p-5 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setIsRoleModalOpen(false)}>
-                ปิดหน้าต่าง
-              </Button>
-              <Button 
-                onClick={handleSaveRole} 
-                className="bg-blue-600 hover:bg-blue-700 text-white" 
-                disabled={newRole === selectedAccount.userRole}
-              >
-                บันทึกสิทธิ์
-              </Button>
+            <div className="bg-muted/30 p-4">
+              <div className="rounded-md border border-border bg-background p-4">
+                <p className="text-sm text-muted-foreground">
+                  คุณแน่ใจหรือไม่ว่าต้องการลบบัญชีของ{" "}
+                  <span className="font-semibold text-gray-800">
+                    {confirmDeleteAccount.name} {confirmDeleteAccount.surname}
+                  </span>
+                  ? การกระทำนี้ไม่สามารถย้อนกลับได้
+                </p>
+              </div>
+
+              <div className="mt-4 flex justify-end gap-3">
+                <Button variant="outline" onClick={() => setConfirmDeleteAccount(null)}>
+                  ยกเลิก
+                </Button>
+                <Button
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                  onClick={handleConfirmDelete}
+                >
+                  ลบ
+                </Button>
+              </div>
             </div>
           </div>
         </div>
