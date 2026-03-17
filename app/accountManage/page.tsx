@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Shield, ShieldAlert, UserCog, X } from "lucide-react"
 import { useToast } from "@/components/Toast"
-import { getColumns, getStatusBadge, type Account, type UserRole } from "./columns"
+import { getColumns, getStatusBadge, type Account, type AccountStatus, type UserRole } from "./columns"
 import { DataTable } from "./data-table"
 
 type AccountApiRecord = {
@@ -19,10 +19,9 @@ type AccountApiRecord = {
 const normalizeRole = (role: string): UserRole => {
   const r = role.toLowerCase()
   if (r === "admin") return "admin"
-  if (r === "head") return "head"
   if (r === "librarian") return "librarian"
   if (r === "director") return "director"
-  return "user"
+  return "librarian"
 }
 
 const normalizeStatus = (status: string) => {
@@ -40,7 +39,9 @@ export default function AccountManagementPage() {
 
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false)
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null)
-  const [newRole, setNewRole] = useState<UserRole>("user")
+  const [newRole, setNewRole] = useState<UserRole>("librarian")
+  const [newStatus, setNewStatus] = useState<AccountStatus>("active")
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const [confirmDeleteAccount, setConfirmDeleteAccount] = useState<Account | null>(null)
 
@@ -80,18 +81,43 @@ export default function AccountManagementPage() {
     fetchAccounts()
   }, [fetchAccounts])
 
-  const handleApproveClick = useCallback((account: Account) => {
-    setAccounts((prev) =>
-      prev.map((acc) =>
-        acc.id === account.id ? { ...acc, accountStatus: "active" } : acc
+  const handleApproveClick = useCallback(async (account: Account) => {
+    try {
+      setIsSubmitting(true)
+      const response = await fetch(`/api/account-manage/${account.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userRole: account.userRole,
+          accountStatus: "active",
+        }),
+      })
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.message || "ไม่สามารถอนุมัติบัญชีผู้ใช้งานได้")
+      }
+
+      await fetchAccounts()
+      showToast("อนุมัติบัญชีผู้ใช้งานแล้ว", "success", 3000)
+    } catch (error) {
+      console.error("Error approving account:", error)
+      showToast(
+        error instanceof Error ? error.message : "เกิดข้อผิดพลาดในการอนุมัติบัญชี",
+        "error",
+        3000
       )
-    )
-    showToast("อนุมัติบัญชีผู้ใช้งานแล้ว", "success", 3000)
-  }, [showToast])
+    } finally {
+      setIsSubmitting(false)
+    }
+  }, [fetchAccounts, showToast])
 
   const handleEditClick = useCallback((account: Account) => {
     setSelectedAccount(account)
     setNewRole(account.userRole)
+    setNewStatus(account.accountStatus === "inactive" ? "inactive" : "active")
     setIsRoleModalOpen(true)
   }, [])
 
@@ -99,36 +125,73 @@ export default function AccountManagementPage() {
     setConfirmDeleteAccount(account)
   }, [])
 
-  const handleConfirmDelete = useCallback(() => {
+  const handleConfirmDelete = useCallback(async () => {
     if (!confirmDeleteAccount) return
-    const target = confirmDeleteAccount
-    setConfirmDeleteAccount(null)
-    setAccounts((prev) => prev.filter((acc) => acc.id !== target.id))
-    showToast("ลบบัญชีสำเร็จ", "success", 3000)
-  }, [confirmDeleteAccount, showToast])
+    try {
+      setIsSubmitting(true)
+      const response = await fetch(`/api/account-manage/${confirmDeleteAccount.id}`, {
+        method: "DELETE",
+      })
 
-  const handleSaveRole = useCallback(() => {
-    if (!selectedAccount) return
-    setAccounts((prev) =>
-      prev.map((acc) =>
-        acc.id === selectedAccount.id ? { ...acc, userRole: newRole } : acc
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.message || "ไม่สามารถลบบัญชีได้")
+      }
+
+      setConfirmDeleteAccount(null)
+      await fetchAccounts()
+      showToast("ลบบัญชีสำเร็จ", "success", 3000)
+    } catch (error) {
+      console.error("Error deleting account:", error)
+      showToast(
+        error instanceof Error ? error.message : "เกิดข้อผิดพลาดในการลบบัญชี",
+        "error",
+        3000
       )
-    )
-    showToast(`ปรับสิทธิ์ ${selectedAccount.name} เป็น ${newRole} สำเร็จ`, "success", 3000)
-    setIsRoleModalOpen(false)
-    setSelectedAccount(null)
-  }, [selectedAccount, newRole, showToast])
-
-  // --- Helper UI Functions ---
-  const getRoleBadge = (role: UserRole) => {
-    switch (role) {
-      case "head": return <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1 w-fit"><ShieldAlert size={12}/> Head</span>
-      case "librarian": return <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1 w-fit"><Shield size={12}/> Librarian</span>
-      case "director": return <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1 w-fit"><ShieldAlert size={12}/> Director</span>
-      case "admin": return <span className="bg-slate-800 text-white px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1 w-fit"><UserCog size={12}/> Admin</span>
-      default: return <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs font-semibold w-fit">User</span>
+    } finally {
+      setIsSubmitting(false)
     }
-  }
+  }, [confirmDeleteAccount, fetchAccounts, showToast])
+
+  const handleSaveRole = useCallback(async () => {
+    if (!selectedAccount) return
+    try {
+      setIsSubmitting(true)
+      const response = await fetch(`/api/account-manage/${selectedAccount.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userRole: newRole,
+          accountStatus: newStatus,
+        }),
+      })
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload?.message || "ไม่สามารถอัปเดตข้อมูลบัญชีได้")
+      }
+
+      showToast(
+        `อัปเดต ${selectedAccount.name}: role เป็น ${newRole} และสถานะเป็น ${newStatus === "active" ? "active" : "reject"} สำเร็จ`,
+        "success",
+        3000
+      )
+      setIsRoleModalOpen(false)
+      setSelectedAccount(null)
+      await fetchAccounts()
+    } catch (error) {
+      console.error("Error updating account:", error)
+      showToast(
+        error instanceof Error ? error.message : "เกิดข้อผิดพลาดในการอัปเดตบัญชี",
+        "error",
+        3000
+      )
+    } finally {
+      setIsSubmitting(false)
+    }
+  }, [selectedAccount, newRole, newStatus, fetchAccounts, showToast])
 
   const columns = useMemo(
     () => getColumns(handleApproveClick, handleEditClick, handleDeleteClick),
@@ -197,20 +260,46 @@ export default function AccountManagementPage() {
 
               {/* แก้ไข Role */}
               <div>
+                <p className="text-sm font-semibold text-gray-800 mb-3">แก้ไขสถานะ (Status)</p>
+                <div className="space-y-2 mb-4">
+                  {(
+                    [
+                      { value: "active" as AccountStatus, label: "Active", desc: "บัญชีใช้งานได้ตามปกติ" },
+                      { value: "inactive" as AccountStatus, label: "Inactive", desc: "ปฏิเสธ/ระงับการใช้งานบัญชี" },
+                    ]
+                  ).map(({ value, label, desc }) => (
+                    <label
+                      key={value}
+                      className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${newStatus === value ? "border-gray-500 bg-gray-50" : "border-gray-200 hover:bg-gray-50"}`}
+                    >
+                      <input
+                        type="radio"
+                        name="status"
+                        value={value}
+                        checked={newStatus === value}
+                        onChange={() => setNewStatus(value)}
+                        className="mr-3 w-4 h-4"
+                      />
+                      <div>
+                        <p className="font-medium text-gray-800">{label}</p>
+                        <p className="text-xs text-gray-500">{desc}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+
                 <p className="text-sm font-semibold text-gray-800 mb-3">แก้ไขระดับสิทธิ์ (Role)</p>
                 <div className="space-y-2">
                   {(
                     [
-                      { value: "admin" as UserRole, label: "Admin", desc: "ผู้ดูแลระบบ - จัดการบัญชีผู้ใช้และระบบได้ทั้งหมด", active: "border-slate-800 bg-slate-50", text: "text-slate-800", icon: <UserCog size={14} /> },
-                      { value: "head" as UserRole, label: "Head", desc: "หัวหน้าห้องสมุด - สิทธิ์สูงสุดในการอนุมัติคำร้องจัดซื้อ", active: "border-purple-500 bg-purple-50", text: "text-purple-700", icon: <ShieldAlert size={14} /> },
-                      { value: "librarian" as UserRole, label: "Librarian", desc: "บรรณารักษ์ - จัดการคำร้องหนังสือและใบเสนอราคาร้านค้า", active: "border-blue-500 bg-blue-50", text: "text-blue-700", icon: <Shield size={14} /> },
-                      { value: "director" as UserRole, label: "Director", desc: "ผู้อำนวยการ - อนุมัติขั้นสุดท้าย", active: "border-amber-500 bg-amber-50", text: "text-amber-700", icon: <ShieldAlert size={14} /> },
-                      { value: "user" as UserRole, label: "User", desc: "ผู้ใช้งานทั่วไป (รอกำหนดสิทธิ์เพิ่มเติม)", active: "border-gray-500 bg-gray-100", text: "text-gray-700", icon: null },
+                      { value: "admin" as UserRole, label: "Admin", desc: "ผู้ดูแลระบบ - จัดการบัญชีผู้ใช้และระบบได้ทั้งหมด", icon: <UserCog size={14} /> },
+                      { value: "librarian" as UserRole, label: "Librarian", desc: "บรรณารักษ์ - จัดการคำร้องหนังสือและใบเสนอราคาร้านค้า", icon: <Shield size={14} /> },
+                      { value: "director" as UserRole, label: "Director", desc: "ผู้อำนวยการ - อนุมัติขั้นสุดท้าย", icon: <ShieldAlert size={14} /> },
                     ]
-                  ).map(({ value, label, desc, active, text, icon }) => (
+                  ).map(({ value, label, desc, icon }) => (
                     <label
                       key={value}
-                      className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${newRole === value ? active : "border-gray-200 hover:bg-gray-50"}`}
+                      className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${newRole === value ? "border-gray-500 bg-gray-50" : "border-gray-200 hover:bg-gray-50"}`}
                     >
                       <input
                         type="radio"
@@ -221,7 +310,7 @@ export default function AccountManagementPage() {
                         className="mr-3 w-4 h-4"
                       />
                       <div>
-                        <p className={`font-medium ${text} flex items-center gap-1`}>
+                        <p className="font-medium text-gray-800 flex items-center gap-1">
                           {icon} {label}
                         </p>
                         <p className="text-xs text-gray-500">{desc}</p>
@@ -238,7 +327,10 @@ export default function AccountManagementPage() {
                 <Button
                   className="bg-blue-600 hover:bg-blue-700 text-white"
                   onClick={handleSaveRole}
-                  disabled={newRole === selectedAccount.userRole}
+                  disabled={isSubmitting || (
+                    newRole === selectedAccount.userRole
+                    && newStatus === (selectedAccount.accountStatus === "inactive" ? "inactive" : "active")
+                  )}
                 >
                   บันทึกสิทธิ์
                 </Button>
@@ -279,6 +371,7 @@ export default function AccountManagementPage() {
                 </Button>
                 <Button
                   className="bg-red-600 hover:bg-red-700 text-white"
+                  disabled={isSubmitting}
                   onClick={handleConfirmDelete}
                 >
                   ลบ

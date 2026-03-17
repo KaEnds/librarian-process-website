@@ -207,6 +207,57 @@ export const getAllWebUsers = async (): Promise<RegisterWebUserRecord[]> => {
   }
 }
 
+export const updateWebUserAccount = async (
+  userId: number,
+  userRole: string,
+  accountStatus: string
+): Promise<RegisterWebUserRecord | null> => {
+  let client;
+  try {
+    client = await pool.connect();
+
+    const query = `
+      UPDATE librairy.web_user
+      SET user_role = $2, account_status = $3
+      WHERE user_id = $1
+      RETURNING user_id, TRIM(username) AS username, user_role, account_status, name, surname
+    `;
+
+    const result: QueryResult<RegisterWebUserRecord> = await client.query(query, [userId, userRole, accountStatus]);
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return result.rows[0];
+  } catch (error: unknown) {
+    console.error('Error updating web user account:', error);
+    throw error;
+  } finally {
+    client?.release();
+  }
+}
+
+export const deleteWebUserById = async (userId: number): Promise<boolean> => {
+  let client;
+  try {
+    client = await pool.connect();
+
+    const query = `
+      DELETE FROM librairy.web_user
+      WHERE user_id = $1
+    `;
+
+    const result = await client.query(query, [userId]);
+    return (result.rowCount ?? 0) > 0;
+  } catch (error: unknown) {
+    console.error('Error deleting web user:', error);
+    throw error;
+  } finally {
+    client?.release();
+  }
+}
+
 export const getBookRequestsByBatches = async (since?: string): Promise<any[]> => {
   try {
     const client = await pool.connect();
