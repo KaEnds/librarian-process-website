@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -41,6 +42,16 @@ export function PurchaseNotePopup({
   onApprove,
   onReject,
 }: PurchaseNotePopupProps) {
+  const [draftNote, setDraftNote] = useState(note)
+
+  useEffect(() => {
+    if (!open) {
+      return
+    }
+
+    setDraftNote(note)
+  }, [note, open])
+
   if (!open) {
     return null
   }
@@ -82,10 +93,14 @@ export function PurchaseNotePopup({
             <label className="mb-2 block text-sm font-semibold">หมายเหตุ</label>
             <textarea
               rows={6}
-              className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
+              autoFocus
+              className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
               placeholder="เขียนหมายเหตุการจัดซื้อ (ถ้ามี)"
-              value={note}
-              onChange={(event) => onNoteChange(event.target.value)}
+              value={draftNote}
+              onChange={(event) => {
+                setDraftNote(event.target.value)
+                onNoteChange(event.target.value)
+              }}
             />
           </div>
 

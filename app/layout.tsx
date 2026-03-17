@@ -20,7 +20,9 @@ export const metadata: Metadata = {
   title: "LibrAIry Librarian Process",
   description: "LibrAIry Librarian Process workflow management system",
   icons: {
-    icon: "/librairy_logopng",
+    icon: "/librairy_logo.png",
+    shortcut: "/librairy_logo.png",
+    apple: "/librairy_logo.png",
   },
 };
 

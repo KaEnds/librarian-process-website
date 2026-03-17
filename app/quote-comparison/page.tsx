@@ -660,29 +660,10 @@ export default function QuoteComparisonPage() {
         </div>
 
         <div className="flex gap-3">
-          {!isEditMode ? (
-            <Button variant="outline" className="bg-white" onClick={handleStartEdit} disabled={isPageActionDisabled}>
-              <Pencil className="w-4 h-4 mr-2" />
-              แก้ไขข้อมูล
-            </Button>
-          ) : (
-            <>
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={handleConfirmEdit} disabled={isPageActionDisabled}>
-                <Check className="w-4 h-4 mr-2" />
-                ยืนยันการแก้ไข
-              </Button>
-              <Button variant="outline" className="bg-white" onClick={handleCancelEdit} disabled={isPageActionDisabled}>
-                <X className="w-4 h-4 mr-2" />
-                ยกเลิก
-              </Button>
-            </>
-          )}
-
           <div className="relative" ref={filterRef}>
             <Button
               variant="outline"
               className={`bg-white ${isFilterOpen ? 'border-blue-500' : ''}`}
-              disabled={isPageActionDisabled}
               onClick={() => setIsFilterOpen(!isFilterOpen)}
             >
               <Filter className="w-4 h-4 mr-2" />
@@ -700,9 +681,8 @@ export default function QuoteComparisonPage() {
                   <h3 className="font-semibold text-sm">ตัวกรอง</h3>
                   {activeFilterCount > 0 && (
                     <button
-                      disabled={isPageActionDisabled}
                       onClick={clearFilters}
-                      className="text-xs text-blue-600 hover:underline disabled:cursor-not-allowed disabled:text-gray-400 disabled:no-underline"
+                      className="text-xs text-blue-600 hover:underline"
                     >
                       ล้างทั้งหมด
                     </button>
@@ -754,6 +734,24 @@ export default function QuoteComparisonPage() {
               </div>
             )}
           </div>
+
+          {!isEditMode ? (
+            <Button variant="outline" className="bg-white" onClick={handleStartEdit} disabled={isPageActionDisabled}>
+              <Pencil className="w-4 h-4 mr-2" />
+              แก้ไขข้อมูล
+            </Button>
+          ) : (
+            <>
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={handleConfirmEdit} disabled={isPageActionDisabled}>
+                <Check className="w-4 h-4 mr-2" />
+                ยืนยันการแก้ไข
+              </Button>
+              <Button variant="outline" className="bg-white" onClick={handleCancelEdit} disabled={isPageActionDisabled}>
+                <X className="w-4 h-4 mr-2" />
+                ยกเลิก
+              </Button>
+            </>
+          )}
           <Button
             className="bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-400 disabled:hover:bg-gray-200"
             onClick={handleOpenUploadDrive}
