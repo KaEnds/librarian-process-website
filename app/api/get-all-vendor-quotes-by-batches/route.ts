@@ -1,9 +1,9 @@
-import { getAllVendorQuotes } from "@/lib/db";
+import { getAllVendorQuotesByBatches } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
     try {
-        const response = await getAllVendorQuotes();
+        const response = await getAllVendorQuotesByBatches();
         if (response) {
             return NextResponse.json({ data: response }, { status: 200 });
         } else {

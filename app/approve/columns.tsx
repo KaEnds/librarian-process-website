@@ -4,6 +4,13 @@ import { ColumnDef } from "@tanstack/react-table"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 
+const formatPrice = (value?: string) => {
+  if (!value) return "-"
+  const numeric = Number.parseFloat(String(value).replace(/,/g, ""))
+  if (!Number.isFinite(numeric)) return "-"
+  return numeric.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
 export type VendorQuoteItem = {
   id: number
   quote_id: number
@@ -67,14 +74,14 @@ export const getColumns = (
       accessorKey: "unit_price",
       header: "ราคาต่อหน่วย",
       cell: ({ row }) => {
-        return <div className="text-sm text-right text-gray-600">{row.getValue("unit_price") || "-"}</div>
+        return <div className="text-sm text-gray-600">{formatPrice(row.original.unit_price)}</div>
       },
     },
     {
       accessorKey: "total_price",
       header: "ราคาสุทธิ",
       cell: ({ row }) => {
-        return <div className="text-sm text-right text-gray-600">{row.getValue("total_price") || "-"}</div>
+        return <div className="text-sm text-gray-600">{formatPrice(row.original.net_price || row.original.total_price)}</div>
       },
     },
     {

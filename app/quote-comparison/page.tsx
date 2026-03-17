@@ -125,7 +125,7 @@ export default function QuoteComparisonPage() {
           setProcessStatus(processPayload?.status ?? null)
         }
 
-        const response = await fetch('/api/get-vendor-quote')
+        const response = await fetch('/api/get-all-vendor-quotes-by-batches')
         const result = await response.json()
         console.log('Vendor Quotes:', result.data)
         
@@ -415,6 +415,39 @@ export default function QuoteComparisonPage() {
     }
 
     try {
+      const pendingQuoteIds = Array.from(new Set(
+        data.flatMap((item) =>
+          item.aiSelectionDetail.comparisonRows.flatMap((row) => {
+            if (row.reviewStatus !== "PENDING_REVIEW") {
+              return [] as number[]
+            }
+
+            if (Array.isArray(row.quoteIds) && row.quoteIds.length > 0) {
+              return row.quoteIds
+            }
+
+            return typeof row.quoteId === "number" ? [row.quoteId] : []
+          })
+        )
+      ))
+
+      if (pendingQuoteIds.length > 0) {
+        const rejectPendingResponse = await fetch('/api/update-quote-comparison-review-status', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            quoteIds: pendingQuoteIds,
+            reviewStatus: 'REJECT_REVIEW',
+          }),
+        })
+
+        if (!rejectPendingResponse.ok) {
+          throw new Error('Failed to reject pending vendor quotes')
+        }
+      }
+
       await updateMultipleProcessStates([
         { processId: 3, status: "DONE" },
         { processId: 4, status: "IN_PROGRESS" },

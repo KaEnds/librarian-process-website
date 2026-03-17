@@ -14,6 +14,11 @@ import {
   markAllWorkflowNotificationsSeen,
   type WorkflowApiNotificationItem,
 } from '@/lib/workflow-notification-client'
+import {
+  getUnseenWorkflowStateChangeNotifications,
+  markAllWorkflowStateChangeNotificationsSeen,
+  type WorkflowNotificationItem,
+} from '@/lib/workflow-notifications'
 
 interface ProcessState {
   process_id: number
@@ -28,6 +33,13 @@ interface CurrentUser {
   account_status: string
   name: string
   surname: string
+}
+
+interface NotificationPreviewItem {
+  id: string
+  message: string
+  createdAt: string
+  meta?: string
 }
 
 const iconMap = [FileText, Send, Home, UserCheck]
@@ -56,8 +68,11 @@ function Topmenu() {
   const [language, setLanguage] = useState('th')
   const [openLanguageMenu, setOpenLanguageMenu] = useState(false)
   const [openNotificationMenu, setOpenNotificationMenu] = useState(false)
+  const [isNotificationHovered, setIsNotificationHovered] = useState(false)
   const [notifications, setNotifications] = useState<RequestNotificationItem[]>([])
   const [workflowNotifications, setWorkflowNotifications] = useState<WorkflowApiNotificationItem[]>([])
+  const [workflowStateChangeNotifications, setWorkflowStateChangeNotifications] = useState<WorkflowNotificationItem[]>([])
+  const [notificationPreviewItems, setNotificationPreviewItems] = useState<NotificationPreviewItem[]>([])
   const [processStates, setProcessStates] = useState<ProcessState[]>([])
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
 
@@ -78,6 +93,7 @@ function Topmenu() {
 
       setNotifications(requestItems)
       setWorkflowNotifications(getUnseenWorkflowNotifications(workflowItems))
+      setWorkflowStateChangeNotifications(getUnseenWorkflowStateChangeNotifications())
     }
 
     syncNotifications()
@@ -145,14 +161,63 @@ function Topmenu() {
   }
 
   const handleToggleNotificationMenu = () => {
-    if (openNotificationMenu && (notifications.length > 0 || workflowNotifications.length > 0)) {
-      markAllRequestNotificationsSeen()
-      markAllWorkflowNotificationsSeen()
-      setNotifications([])
-      setWorkflowNotifications([])
+    setOpenNotificationMenu(!openNotificationMenu)
+  }
+
+  const buildPreviewItems = (): NotificationPreviewItem[] => {
+    const requestPreview = notifications.map((notification) => ({
+      id: `request-${notification.requestId}-${notification.createdAt}`,
+      message: `คำร้องใหม่เลขที่ ${notification.requestId}`,
+      createdAt: notification.createdAt,
+      meta: notification.title || undefined,
+    }))
+
+    const workflowPreview = workflowNotifications.map((notification) => ({
+      id: `workflow-api-${notification.id}`,
+      message: notification.message || 'Workflow notification',
+      createdAt: notification.created_at,
+      meta: notification.workflow_name || notification.status,
+    }))
+
+    const workflowStatePreview = workflowStateChangeNotifications.map((notification) => ({
+      id: `workflow-state-${notification.id}`,
+      message: notification.message,
+      createdAt: notification.createdAt,
+      meta: notification.details[0],
+    }))
+
+    return [...requestPreview, ...workflowPreview, ...workflowStatePreview]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 5)
+  }
+
+  const markNotificationsAsSeen = () => {
+    if (notifications.length === 0 && workflowNotifications.length === 0 && workflowStateChangeNotifications.length === 0) {
+      return
     }
 
-    setOpenNotificationMenu(!openNotificationMenu)
+    markAllRequestNotificationsSeen()
+    markAllWorkflowNotificationsSeen()
+    markAllWorkflowStateChangeNotificationsSeen()
+    setNotifications([])
+    setWorkflowNotifications([])
+    setWorkflowStateChangeNotifications([])
+  }
+
+  const handleNotificationHoverStart = () => {
+    const previewItems = buildPreviewItems()
+    setNotificationPreviewItems(previewItems)
+    setIsNotificationHovered(true)
+    if (previewItems.length > 0) {
+      markNotificationsAsSeen()
+    }
+  }
+
+  const handleNotificationHoverEnd = () => {
+    setIsNotificationHovered(false)
+    if (!openNotificationMenu) {
+      setNotificationPreviewItems([])
+    }
   }
 
   const languages = [
@@ -181,7 +246,9 @@ function Topmenu() {
     status: mapStatus(process.status),
   }))
 
-  const totalUnreadNotifications = notifications.length + workflowNotifications.length
+  const totalUnreadNotifications = notifications.length + workflowNotifications.length + workflowStateChangeNotifications.length
+  const visibleNotificationItems = notificationPreviewItems.length > 0 ? notificationPreviewItems : buildPreviewItems()
+  const shouldShowNotificationMenu = openNotificationMenu || isNotificationHovered
 
   return (
     <div className="fixed top-0 right-0 h-20 w-[calc(100%-16rem)] bg-white border-b border-slate-200 flex items-center justify-between px-6 z-40">
@@ -301,41 +368,43 @@ function Topmenu() {
       {/* Right Section - Icons and User */}
       <div className="flex items-center gap-6 ml-auto">
         {/* Notification Bell */}
-        <div className="relative">
+        <div
+          className="relative"
+          onMouseEnter={handleNotificationHoverStart}
+          onMouseLeave={handleNotificationHoverEnd}
+        >
           <button
             onClick={handleToggleNotificationMenu}
             className="relative text-slate-600 hover:text-slate-900 transition"
+            aria-label={totalUnreadNotifications > 0 ? `มีแจ้งเตือนใหม่ ${totalUnreadNotifications} รายการ` : 'ไม่มีแจ้งเตือนใหม่'}
+            title={totalUnreadNotifications > 0 ? `แจ้งเตือนใหม่ ${totalUnreadNotifications} รายการ` : 'ไม่มีแจ้งเตือนใหม่'}
           >
             <Bell className="w-5 h-5" />
             {totalUnreadNotifications > 0 && (
-              <span className="absolute top-0 right-0 w-2 h-2 bg-blue-500 rounded-full"></span>
+              <>
+                <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                <span className="absolute -top-2 -right-3 min-w-5 h-5 px-1 rounded-full bg-red-500 text-[10px] font-semibold text-white flex items-center justify-center leading-none">
+                  {totalUnreadNotifications > 99 ? '99+' : totalUnreadNotifications}
+                </span>
+              </>
             )}
           </button>
 
-          {openNotificationMenu && (
+          {shouldShowNotificationMenu && (
             <div className="absolute top-full right-0 mt-2 w-80 bg-white border border-slate-200 rounded-lg shadow-lg z-50">
               <div className="px-4 py-2 border-b border-slate-200 text-sm font-semibold text-slate-800">
                 แจ้งเตือนล่าสุด
               </div>
               <div className="max-h-72 overflow-y-auto">
-                {totalUnreadNotifications > 0 ? (
+                {visibleNotificationItems.length > 0 ? (
                   <>
-                    {notifications.map((notification, index) => (
-                    <div key={`${notification.requestId}-${index}`} className="px-4 py-3 border-b border-slate-100 last:border-b-0">
-                      <p className="text-sm text-slate-800">มี request id: <span className="font-semibold">{notification.requestId}</span></p>
-                      <p className="text-xs text-slate-500">requested_at: {formatDateTime(notification.requestedAt)}</p>
-                    </div>
-                    ))}
-                    {workflowNotifications.map((notification, index) => (
-                      <div key={`workflow-${notification.id}-${index}`} className="px-4 py-3 border-b border-slate-100 last:border-b-0">
-                        <p className="text-sm text-slate-800">
-                          {notification.message || "Workflow notification"}
-                        </p>
-                        {notification.workflow_name && (
-                          <p className="text-xs text-slate-500">workflow: {notification.workflow_name}</p>
+                    {visibleNotificationItems.map((item) => (
+                      <div key={item.id} className="px-4 py-3 border-b border-slate-100 last:border-b-0">
+                        <p className="text-sm text-slate-800">{item.message}</p>
+                        {item.meta && (
+                          <p className="text-xs text-slate-500 mt-1">{item.meta}</p>
                         )}
-                        <p className="text-xs text-slate-500">status: {notification.status}</p>
-                        <p className="text-xs text-slate-500">at: {formatDateTime(notification.created_at)}</p>
+                        <p className="text-xs text-slate-500 mt-1">at: {formatDateTime(item.createdAt)}</p>
                       </div>
                     ))}
                   </>

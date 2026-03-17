@@ -9,6 +9,7 @@ export type WorkflowNotificationItem = {
 }
 
 const STORAGE_KEY = "workflow-notifications"
+const LAST_SEEN_KEY = "workflow-state-change-last-seen-at"
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
 
 const isBrowser = () => typeof window !== "undefined"
@@ -64,6 +65,14 @@ const notifyUpdated = () => {
   window.dispatchEvent(new Event(REQUEST_NOTIFICATIONS_UPDATED_EVENT))
 }
 
+const getLastSeenAt = (): string | null => {
+  if (!isBrowser()) {
+    return null
+  }
+
+  return window.localStorage.getItem(LAST_SEEN_KEY)
+}
+
 export const addWorkflowStateChangeNotification = (
   updates: Array<{ processId: number; status: string }>
 ) => {
@@ -96,4 +105,32 @@ export const getRecentWorkflowNotifications = (): WorkflowNotificationItem[] => 
 
   persistItems(sorted)
   return sorted
+}
+
+export const getUnseenWorkflowStateChangeNotifications = (): WorkflowNotificationItem[] => {
+  const items = getRecentWorkflowNotifications()
+  const lastSeenAt = getLastSeenAt()
+  const lastSeenTime = lastSeenAt ? new Date(lastSeenAt).getTime() : null
+
+  return items.filter((item) => {
+    const createdTime = new Date(item.createdAt).getTime()
+    if (Number.isNaN(createdTime)) {
+      return false
+    }
+
+    if (lastSeenTime === null || Number.isNaN(lastSeenTime)) {
+      return true
+    }
+
+    return createdTime > lastSeenTime
+  })
+}
+
+export const markAllWorkflowStateChangeNotificationsSeen = () => {
+  if (!isBrowser()) {
+    return
+  }
+
+  window.localStorage.setItem(LAST_SEEN_KEY, new Date().toISOString())
+  notifyUpdated()
 }

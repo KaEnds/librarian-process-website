@@ -8,15 +8,20 @@ import {
 } from "@/lib/request-notifications"
 import {
   getRecentWorkflowNotifications,
+  getUnseenWorkflowStateChangeNotifications,
   type WorkflowNotificationItem,
 } from "@/lib/workflow-notifications"
+import {
+  getUnseenWorkflowNotifications,
+} from "@/lib/workflow-notification-client"
 
 type NotificationLogEntry =
-  | { type: "request"; createdAt: string; item: RequestNotificationItem }
-  | { type: "workflow"; createdAt: string; item: WorkflowNotificationItem }
+  | { type: "request"; createdAt: string; isUnread: boolean; item: RequestNotificationItem }
+  | { type: "workflow"; createdAt: string; isUnread: boolean; item: WorkflowNotificationItem }
   | {
       type: "n8n-workflow"
       createdAt: string
+      isUnread: boolean
       item: {
         id: number
         source: string | null
@@ -110,24 +115,32 @@ export default function NotificationLogPage() {
     let intervalId: ReturnType<typeof setInterval> | null = null
 
     const syncLogs = async () => {
+      const unseenWorkflowStateChangeIds = new Set(
+        getUnseenWorkflowStateChangeNotifications().map((item) => item.id)
+      )
+
       const requestLogs: NotificationLogEntry[] = getRecentRequestNotifications().map((item) => ({
         type: "request",
         createdAt: item.createdAt,
+        isUnread: !item.seenAt,
         item,
       }))
 
       const workflowLogs: NotificationLogEntry[] = getRecentWorkflowNotifications().map((item) => ({
         type: "workflow",
         createdAt: item.createdAt,
+        isUnread: unseenWorkflowStateChangeIds.has(item.id),
         item,
       }))
 
       let n8nLogs: NotificationLogEntry[] = []
       try {
         const n8nItems = await fetchN8nWorkflowNotifications()
+        const unseenN8nIds = new Set(getUnseenWorkflowNotifications(n8nItems).map((item) => item.id))
         n8nLogs = n8nItems.map((item) => ({
           type: "n8n-workflow",
           createdAt: item.created_at,
+          isUnread: unseenN8nIds.has(item.id),
           item,
         }))
       } catch {
@@ -178,7 +191,9 @@ export default function NotificationLogPage() {
                 return (
                   <div key={`n8n-${item.id}-${index}`} className="p-4">
                     <div className="flex items-center justify-between gap-3">
-                      <div>
+                      <div className="flex items-start gap-2">
+                        <span className={`mt-1.5 h-2 w-2 rounded-full ${entry.isUnread ? "bg-red-500" : "bg-transparent"}`} />
+                        <div>
                         <p className="text-sm text-gray-800">
                           <span className="font-semibold">n8n:</span> {item.message || "Workflow ทำงานเสร็จสิ้น"}
                         </p>
@@ -189,6 +204,7 @@ export default function NotificationLogPage() {
                           <p className="text-sm text-gray-700 mt-1">Execution ID: {item.execution_id}</p>
                         )}
                         <p className="text-sm text-gray-700 mt-1">Status: {item.status}</p>
+                        </div>
                       </div>
                       <span className="text-xs text-blue-600">{formatRelativeTime(item.created_at)}</span>
                     </div>
@@ -202,13 +218,16 @@ export default function NotificationLogPage() {
                 return (
                   <div key={`${item.id}-${index}`} className="p-4">
                     <div className="flex items-center justify-between gap-3">
-                      <div>
+                      <div className="flex items-start gap-2">
+                        <span className={`mt-1.5 h-2 w-2 rounded-full ${entry.isUnread ? "bg-red-500" : "bg-transparent"}`} />
+                        <div>
                         <p className="text-sm text-gray-800">
                           <span className="font-semibold">Workflow:</span> {item.message}
                         </p>
                         {item.details.map((line) => (
                           <p key={line} className="text-sm text-gray-700 mt-1">{line}</p>
                         ))}
+                        </div>
                       </div>
                       <span className="text-xs text-blue-600">{formatRelativeTime(item.createdAt)}</span>
                     </div>
@@ -221,13 +240,16 @@ export default function NotificationLogPage() {
               return (
                 <div key={`${item.requestId}-${item.createdAt}-${index}`} className="p-4">
                   <div className="flex items-center justify-between gap-3">
-                    <div>
+                    <div className="flex items-start gap-2">
+                      <span className={`mt-1.5 h-2 w-2 rounded-full ${entry.isUnread ? "bg-red-500" : "bg-transparent"}`} />
+                      <div>
                       <p className="text-sm text-gray-800">
                         คำร้องใหม่เลขที่ <span className="font-semibold">{item.requestId}</span>
                       </p>
                       {item.title && (
                         <p className="text-sm text-gray-700 font-medium mt-1">{item.title}</p>
                       )}
+                      </div>
                     </div>
                     <span className="text-xs text-blue-600">{formatRelativeTime(item.createdAt)}</span>
                   </div>

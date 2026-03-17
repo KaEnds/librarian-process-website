@@ -16,6 +16,7 @@ import {
 
 type BatchGroup = {
   id: string
+  batchId: number | null
   name: string
   date: string
   totalRequests: number
@@ -109,9 +110,10 @@ export default function RequestsHistoryPage() {
         const apiRequests: ApiRequest[] = Array.isArray(payload?.data) ? payload.data : []
 
         const groupedRequests = apiRequests.reduce<Map<string, ApiRequest[]>>((result, item) => {
+          const batchId = typeof item.batch_id === "number" ? item.batch_id : null
           const batchStartDate = toTextOrNull(item.batch_start_date)
           const batchEndDate = toTextOrNull(item.batch_end_date)
-          const key = `${batchStartDate ?? ""}|${batchEndDate ?? ""}`
+          const key = `${batchId ?? "no-batch"}|${batchStartDate ?? ""}|${batchEndDate ?? ""}`
 
           const group = result.get(key) ?? []
           group.push(item)
@@ -120,15 +122,23 @@ export default function RequestsHistoryPage() {
         }, new Map())
 
         const sortedGroups = [...groupedRequests.entries()].sort((a, b) => {
-          const [aStart, aEnd] = a[0].split("|")
-          const [bStart, bEnd] = b[0].split("|")
+          const [aBatchIdRaw, aStart, aEnd] = a[0].split("|")
+          const [bBatchIdRaw, bStart, bEnd] = b[0].split("|")
+          const aBatchId = Number(aBatchIdRaw)
+          const bBatchId = Number(bBatchIdRaw)
+
+          if (Number.isFinite(aBatchId) && Number.isFinite(bBatchId) && aBatchId !== bBatchId) {
+            return bBatchId - aBatchId
+          }
+
           const aTime = Math.max(toUnixTime(aStart), toUnixTime(aEnd))
           const bTime = Math.max(toUnixTime(bStart), toUnixTime(bEnd))
           return bTime - aTime
         })
 
-        const mappedBatches: BatchGroup[] = sortedGroups.map(([key, requests], index) => {
-          const [batchStartDateRaw, batchEndDateRaw] = key.split("|")
+        const mappedBatches: BatchGroup[] = sortedGroups.map(([key, requests]) => {
+          const [batchIdRaw, batchStartDateRaw, batchEndDateRaw] = key.split("|")
+          const batchId = Number.isFinite(Number(batchIdRaw)) ? Number(batchIdRaw) : null
           const batchStartDate = toTextOrNull(batchStartDateRaw)
           const batchEndDate = toTextOrNull(batchEndDateRaw)
           const date = createBatchDateText(batchStartDate, batchEndDate)
@@ -136,7 +146,8 @@ export default function RequestsHistoryPage() {
 
           return {
             id: key,
-            name: `Batch ${index + 1}`,
+            batchId,
+            name: batchId !== null ? `Batch ${batchId}` : "Batch -",
             date,
             totalRequests: mappedRequests.length,
             requests: mappedRequests,

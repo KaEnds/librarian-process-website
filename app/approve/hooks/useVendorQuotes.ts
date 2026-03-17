@@ -57,7 +57,7 @@ export const useVendorQuotes = (options: UseVendorQuotesOptions = {}) => {
   const fetchVendorQuotes = async () => {
     try {
       setIsLoading(true)
-      const response = await fetch("/api/get-vendor-quote")
+      const response = await fetch("/api/get-all-vendor-quotes-by-batches")
       
       if (!response.ok) {
         throw new Error("Failed to fetch vendor quotes")

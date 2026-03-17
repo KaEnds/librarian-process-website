@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { ChevronDown, Home, Grid2X2, FileText, Users, Bell, Settings, HelpCircle, Book, UserCog } from 'lucide-react'
-import librairy_logo from '../images/librairy_logo.png'
+import librairyLogo from '../images/librairy_logo.png'
 import { useToast } from '@/components/Toast'
 import { logoutUser } from '@/actions/auth'
 import {
@@ -15,6 +15,7 @@ import {
   fetchRecentWorkflowNotifications,
   getUnseenWorkflowNotifications,
 } from '@/lib/workflow-notification-client'
+import { getUnseenWorkflowStateChangeNotifications } from '@/lib/workflow-notifications'
 
 function Sidemenu() {
   const [openWorkflow, setOpenWorkflow] = useState(false)
@@ -40,12 +41,13 @@ function Sidemenu() {
       const requestCount = getUnseenRequestNotifications().length
       const workflowItems = await fetchRecentWorkflowNotifications(100)
       const workflowCount = getUnseenWorkflowNotifications(workflowItems).length
+      const workflowStateChangeCount = getUnseenWorkflowStateChangeNotifications().length
 
       if (disposed) {
         return
       }
 
-      setUnreadNotificationCount(requestCount + workflowCount)
+      setUnreadNotificationCount(requestCount + workflowCount + workflowStateChangeCount)
     }
 
     syncUnreadCount()
@@ -138,7 +140,7 @@ function Sidemenu() {
       {/* Header */}
       <div className="p-6 border-b border-slate-700">
         <div className="flex items-center gap-3">
-          <img src={librairy_logo.src} alt="Librairy Logo" className="w-8 h-8" />
+          <img src={librairyLogo.src} alt="Librairy Logo" className="w-8 h-8" />
           <span className="text-2xl">Libr<span className='font-bold'>AI</span>ry</span>
         </div>
       </div>
@@ -169,7 +171,7 @@ function Sidemenu() {
               <div className="flex items-center gap-3">
                 <Grid2X2 className="w-5 h-5" />
                 <span>Workflow</span>
-                {(unreadNotificationCount > 0 || currentProcessId !== null) && (
+                {currentProcessId !== null && (
                   <span className="w-2 h-2 bg-red-500 rounded-full"></span>
                 )}
               </div>
@@ -184,7 +186,7 @@ function Sidemenu() {
                   className={`flex items-center justify-between w-full text-left px-3 py-2 text-xs rounded transition ${isActive("/requests-selection") ? "bg-slate-800 text-white" : "text-slate-300 hover:text-white hover:bg-slate-800"}`}
                 >
                   <span>คัดเลือกคำร้อง</span>
-                  {(unreadNotificationCount > 0 || isProcessActive(1)) && (
+                  {isProcessActive(1) && (
                     <span className="w-2 h-2 bg-red-500 rounded-full"></span>
                   )}
                 </Link>
@@ -292,12 +294,19 @@ function Sidemenu() {
             className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition ${isActive("/notification-log") ? "bg-slate-800 text-white" : "text-slate-200 hover:bg-slate-800"}`}
           >
             <span className="flex items-center gap-3">
-              <Bell className="w-5 h-5" />
+              <span className="relative inline-flex">
+                <Bell className="w-5 h-5" />
+                {unreadNotificationCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
+                )}
+              </span>
               Notifications
             </span>
-            {unreadNotificationCount > 0 && (
-              <span className="w-2 h-2 bg-red-500 rounded-full"></span>
-            )}
+            {unreadNotificationCount > 0 ? (
+              <span className="min-w-5 h-5 px-1 rounded-full bg-red-500 text-[10px] font-semibold text-white flex items-center justify-center">
+                {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+              </span>
+            ) : null}
           </Link>
 
           {/* Settings */}

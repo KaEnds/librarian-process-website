@@ -176,7 +176,8 @@ export default function ApprovePage() {
     }
 
     const total = filteredData.reduce((sum, item) => {
-      const price = parseFloat(item.unit_price.replace(/,/g, '')) || 0
+      const sourcePrice = item.net_price || item.total_price || item.unit_price
+      const price = parseFloat(sourcePrice.replace(/,/g, '')) || 0
       return sum + price
     }, 0)
     
@@ -236,6 +237,36 @@ export default function ApprovePage() {
     }
 
     try {
+      const quoteResponse = await fetch('/api/get-all-vendor-quotes-by-batches')
+      if (!quoteResponse.ok) {
+        throw new Error('ไม่สามารถดึงรายการใบเสนอราคาล่าสุดได้')
+      }
+
+      const quotePayload = await quoteResponse.json()
+      const rejectedQuoteIds = Array.from(new Set(
+        (quotePayload?.data ?? [])
+          .filter((item: any) => item?.review_status === 'REJECT_REVIEW')
+          .map((item: any) => Number(item?.quote_id))
+          .filter((quoteId: number) => Number.isFinite(quoteId) && quoteId > 0)
+      ))
+
+      if (rejectedQuoteIds.length > 0) {
+        const restoreResponse = await fetch('/api/update-quote-comparison-review-status', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            quoteIds: rejectedQuoteIds,
+            reviewStatus: 'PENDING_REVIEW',
+          }),
+        })
+
+        if (!restoreResponse.ok) {
+          throw new Error('ไม่สามารถเปลี่ยนสถานะ REJECT_REVIEW กลับเป็น PENDING_REVIEW ได้')
+        }
+      }
+
       await updateMultipleProcessStates([
         { processId: 3, status: 'IN_PROGRESS' },
         { processId: 4, status: 'PENDING' },
@@ -254,7 +285,7 @@ export default function ApprovePage() {
     }
 
     if (filteredData.length === 0) {
-      showToast("ไม่พบรายการสำหรับเขียนหมายเหตุ", "info")
+      showToast("ไม่พบรายการสำหรับเขียนหมายเหตุ", "info")  
       return
     }
 
@@ -262,13 +293,42 @@ export default function ApprovePage() {
   }
 
   const handleSavePurchaseNote = () => {
-    sessionStorage.setItem(NOTE_STORAGE_KEY, purchaseNote)
-    setIsNotePopupOpen(false)
-    showToast("บันทึกหมายเหตุเรียบร้อย", "success")
+    const savePurchaseRemark = async () => {
+      try {
+        const response = await fetch('/api/update-purchase-remark', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ remark: purchaseNote }),
+        })
+
+        if (!response.ok) {
+          throw new Error('Failed to save purchase remark')
+        }
+
+        sessionStorage.setItem(NOTE_STORAGE_KEY, purchaseNote)
+        setIsNotePopupOpen(false)
+        showToast("บันทึกหมายเหตุเรียบร้อย", "success")
+      } catch (error) {
+        console.error('Error saving purchase remark:', error)
+        showToast("เกิดข้อผิดพลาดในการบันทึกหมายเหตุ", "error")
+      }
+    }
+
+    void savePurchaseRemark()
   }
 
   const handleDirectorApprovePurchase = async () => {
     try {
+      const remarkResponse = await fetch('/api/update-purchase-remark', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ remark: purchaseNote }),
+      })
+
+      if (!remarkResponse.ok) {
+        throw new Error('Failed to save purchase remark')
+      }
+
       const decisionResponse = await fetch('/api/update-purchase-decision', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -514,7 +574,7 @@ export default function ApprovePage() {
           quantity: item.quantity,
           unit: item.unit,
           unit_price: item.unit_price,
-          total_price: item.total_price,
+          total_price: item.net_price || item.total_price,
           vendor_name: item.vendor_name,
         }))}
         note={purchaseNote}

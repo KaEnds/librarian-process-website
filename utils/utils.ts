@@ -12,6 +12,7 @@ export type ApiScoreItem = {
 }
 
 export type ApiRequest = {
+  batch_id?: number | null
   request_id?: number | null
   title?: string | null
   authors?: string | null

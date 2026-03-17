@@ -279,6 +279,7 @@ export const getBookRequestsByBatches = async (since?: string): Promise<any[]> =
               br.updated_at AS book_request_updated_at,
               pe.*, 
               br.request_id AS request_id,
+              b.batch_id,
               b.batch_start_date, 
               b.batch_end_date,
               f.faculty_name_th,
@@ -318,6 +319,7 @@ export const getAllBookRequests = async (since?: string): Promise<any[]> => {
               br.updated_at AS book_request_updated_at,
               pe.*, 
               br.request_id AS request_id,
+              b.batch_id,
               b.batch_start_date, 
               b.batch_end_date,
               f.faculty_name_th,
@@ -503,7 +505,7 @@ export const getAllProcessStates = async (): Promise<any[]> => {
   }
 }
 
-export const getAllVendorQuotes = async (): Promise<any[]> => {
+export const getAllVendorQuotesByBatches = async (): Promise<any[]> => {
   try {
     const client = await pool.connect();
 
@@ -537,6 +539,43 @@ export const getAllVendorQuotes = async (): Promise<any[]> => {
     return result.rows;
   } catch (error: any) {
     console.error('Error fetching all vendor quotes:', error.message);
+    throw error;
+  }
+}
+
+export const getAllVendorQuotes = async (): Promise<any[]> => {
+  try {
+    const client = await pool.connect();
+
+    const query = `
+      SELECT DISTINCT ON (vq.quote_id)
+          vq.*,
+          pe.net_score,
+          pe.passed_selection,
+          ad.*,
+          b.batch_id,
+          b.status AS batch_status,
+          b.batch_start_date,
+          b.batch_end_date,
+          pa.*
+      FROM librairy.vendor_quotes vq
+      LEFT JOIN librairy.policy_evaluations pe
+          ON vq.evaluation_id = pe.evaluation_id
+      LEFT JOIN librairy.acquisition_decisions ad
+          ON pe.evaluation_id = ad.evaluation_id
+      LEFT JOIN librairy.batches b
+          ON pe.batch_id = b.batch_id
+      LEFT JOIN librairy.purchase_approvals pa
+          ON ad.approval_id = pa.approval_id
+      ORDER BY vq.quote_id;
+    `;
+
+    const result: QueryResult<any> = await client.query(query);
+    client.release();
+
+    return result.rows;
+  } catch (error: any) {
+    console.error('Error fetching all vendor quotes (no batch filter):', error.message);
     throw error;
   }
 }
@@ -597,6 +636,45 @@ export const updateMultipleVendorQuoteReviewStatus = async (
 
 export type PurchaseDecision = 'APPROVE' | 'REJECT' | 'WAIT_FOR_APPROVAL'
 
+export const updatePurchaseRemarkByApprovedQuotes = async (
+  remark: string,
+): Promise<number> => {
+  let client;
+  try {
+    client = await pool.connect();
+
+    const query = `
+      UPDATE librairy.purchase_approvals
+      SET approval_remark = $1
+      WHERE approval_id IN (
+        SELECT DISTINCT ad.approval_id
+        FROM librairy.vendor_quotes vq
+        JOIN librairy.acquisition_decisions ad
+          ON ad.evaluation_id = vq.evaluation_id
+        JOIN librairy.purchase_approvals pa
+          ON pa.approval_id = ad.approval_id
+        JOIN librairy.policy_evaluations pe
+          ON vq.evaluation_id = pe.evaluation_id
+        JOIN librairy.batches b
+          ON pe.batch_id = b.batch_id
+        WHERE vq.review_status = 'APPROVE_REVIEW'
+          AND ad.approval_id IS NOT NULL
+          AND (CURRENT_TIMESTAMP - INTERVAL '7 days') BETWEEN b.batch_start_date AND b.batch_end_date
+      )
+      RETURNING approval_id
+    `;
+
+    const result: QueryResult<any> = await client.query(query, [remark]);
+    console.log(`Updated approval_remark for ${result.rowCount ?? 0} approval(s)`);
+    return result.rowCount ?? 0;
+  } catch (error: any) {
+    console.error('Error updating purchase approval remark:', error.message);
+    throw error;
+  } finally {
+    client?.release();
+  }
+}
+
 export const updatePurchaseDecisionByApprovedQuotes = async (
   decision: PurchaseDecision,
 ): Promise<number> => {
@@ -623,6 +701,7 @@ export const updatePurchaseDecisionByApprovedQuotes = async (
         JOIN librairy.batches b
           ON pe.batch_id = b.batch_id
         WHERE vq.review_status = 'APPROVE_REVIEW'
+          AND ad.approval_id IS NOT NULL
           AND (CURRENT_TIMESTAMP - INTERVAL '7 days') BETWEEN b.batch_start_date AND b.batch_end_date
       )
       RETURNING approval_id
