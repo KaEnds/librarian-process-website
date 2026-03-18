@@ -226,7 +226,7 @@ export default function QuoteComparisonPage() {
                   quantity: item.quantity ? String(item.quantity) : "-",
                   delivery: item.estimated_delivery_day || "N/A",
                   aiDecision: item.is_best_option ? "the-best" : "optional",
-                  aiReason: item.is_best_option ? "คัดเลือกโดย AI" : "ตัวเลือกอื่น",
+                  aiReason: item.decision_reason?.trim() || "-",
                   reviewStatus: item.review_status,
                 })),
               },
