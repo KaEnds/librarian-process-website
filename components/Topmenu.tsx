@@ -221,7 +221,7 @@ function Topmenu() {
   }
 
   const languages = [
-    { code: 'en', name: 'English', flag: 'https://flagcdn.com/w40/gb.png' },
+    { code: 'en', name: 'Eng', flag: 'https://flagcdn.com/w40/gb.png' },
     { code: 'th', name: 'ไทย', flag: 'https://flagcdn.com/w40/th.png' }
   ]
 
