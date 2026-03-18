@@ -2,6 +2,7 @@ import { Pool, QueryResult } from 'pg';
 import { hash } from 'bcryptjs';
 import { compare } from 'bcryptjs';
 
+// test push
 const pool = new Pool({
   host: 'postgres',
   port: 5432,
