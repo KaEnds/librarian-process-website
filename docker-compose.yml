@@ -1,4 +1,6 @@
-version: '3.8'
+networks:
+  librairy-net:
+    external: true
 
 services:
   librarianweb:
@@ -19,14 +21,7 @@ services:
       - "traefik.http.routers.librarianweb.rule=Host(`librarian-process-web.library.work`)"
       - "traefik.http.services.librarianweb.loadbalancer.server.port=5000"
     restart: unless-stopped
+    networks:
+      - librairy-net
 
   # ---------- Cloudflare Tunnel ----------
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: cloudflare-tunnel-librarianweb
-    depends_on:
-      - librarianweb
-    restart: unless-stopped
-    command: tunnel --no-autoupdate run
-    environment:
-      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
