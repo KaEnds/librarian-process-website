@@ -3,8 +3,8 @@ import { hash } from 'bcryptjs';
 import { compare } from 'bcryptjs';
 
 const pool = new Pool({
-  host: 'host.docker.internal',
-  port: 5434,
+  host: 'postgres',
+  port: 5432,
   database: 'librairy', 
   user: 'admin',
   password: 'adminpass'
