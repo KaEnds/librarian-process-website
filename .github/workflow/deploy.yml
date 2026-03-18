@@ -1,0 +1,24 @@
+name: Continuous Deployment (Docker Runner)
+
+# 1. กำหนดว่าเมื่อไหร่จะให้ทำงาน
+on:
+  push:
+    branches:
+      - main  # หรือเปลี่ยนเป็น branch ที่เพื่อนใช้ (เช่น master)
+
+jobs:
+  deploy:
+    # 2. ระบุว่าให้รันบนเครื่องเซิร์ฟเวอร์เรา (Self-hosted)
+    runs-on: self-hosted
+    
+    steps:
+      - name: 🚀 Pull and Rebuild
+        run: |
+          # 3. คำสั่งที่อยากให้พิมพ์ในเครื่องเราอัตโนมัติ
+          cd /root/librarian-process-website
+          
+          # ดึงโค้ดใหม่ (ใช้ git pull ปกติได้เลยเพราะเป็นเครื่องเราเอง)
+          git pull origin main
+          
+          # สั่งรันเฉพาะตัว frontend ใหม่
+          docker compose up -d --build librarianweb
