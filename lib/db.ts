@@ -2,6 +2,7 @@ import { Pool, QueryResult } from 'pg';
 import { hash } from 'bcryptjs';
 import { compare } from 'bcryptjs';
 
+// Create a connection pool to the PostgreSQL database
 const pool = new Pool({
   host: 'host.docker.internal',
   port: 5434,
