@@ -1,7 +1,7 @@
 "use client"
 
 import { ColumnDef } from "@tanstack/react-table"
-import { Edit, Trash2 } from "lucide-react"
+import { Edit } from "lucide-react"
 
 export type Policy = {
   policy_id: number
@@ -12,8 +12,7 @@ export type Policy = {
 }
 
 export const getColumns = (
-  onEdit: (policy: Policy) => void,
-  onDelete: (policyId: number) => void
+  onEdit: (policy: Policy) => void
 ): ColumnDef<Policy>[] => [
   {
     accessorKey: "policy_id",
@@ -77,14 +76,6 @@ export const getColumns = (
             aria-label="แก้ไข"
           >
             <Edit size={18} />
-          </button>
-          <button
-            type="button"
-            onClick={() => onDelete(policy.policy_id)}
-            className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors"
-            aria-label="ลบ"
-          >
-            <Trash2 size={18} />
           </button>
         </div>
       )

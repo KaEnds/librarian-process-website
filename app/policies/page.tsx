@@ -14,7 +14,6 @@ export default function PolicyManagementPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isPopupOpen, setIsPopupOpen] = useState(false)
   const [selectedPolicy, setSelectedPolicy] = useState<Policy | null>(null)
-  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
 
   const fetchPolicies = useCallback(async () => {
     setIsLoading(true)
@@ -45,35 +44,9 @@ export default function PolicyManagementPage() {
     setIsPopupOpen(true)
   }, [])
 
-  const handleDeleteClick = useCallback((id: number) => {
-    setConfirmDeleteId(id)
-  }, [])
-
-  const handleConfirmDelete = useCallback(async () => {
-    if (confirmDeleteId === null) return
-    const id = confirmDeleteId
-    setConfirmDeleteId(null)
-    try {
-      const response = await fetch("/api/policies", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ policyId: id }),
-      })
-      if (!response.ok) {
-        const errorPayload = await response.json().catch(() => ({}))
-        throw new Error(errorPayload?.message || "Delete policy failed")
-      }
-      await fetchPolicies()
-      showToast("ลบข้อมูลสำเร็จ", "success", 3000)
-    } catch (error) {
-      console.error("Error deleting policy:", error)
-      showToast("เกิดข้อผิดพลาดในการลบข้อมูล", "error", 3000)
-    }
-  }, [confirmDeleteId, fetchPolicies, showToast])
-
   const columns = useMemo(
-    () => getColumns(handleEditClick, handleDeleteClick),
-    [handleEditClick, handleDeleteClick]
+    () => getColumns(handleEditClick),
+    [handleEditClick]
   )
 
   return (
@@ -107,37 +80,6 @@ export default function PolicyManagementPage() {
         initialData={selectedPolicy}
         onSuccess={fetchPolicies}
       />
-
-      {/* Confirm Delete Dialog */}
-      {confirmDeleteId !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setConfirmDeleteId(null)}>
-          <div
-            className="w-full max-w-md overflow-hidden rounded-md border border-border bg-background"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-border bg-background px-5 py-3">
-              <h3 className="text-base font-semibold">ยืนยันการลบ</h3>
-            </div>
-
-            <div className="bg-muted/30 p-4">
-              <div className="rounded-md border border-border bg-background p-4">
-                <p className="text-sm text-muted-foreground">
-                  คุณแน่ใจหรือไม่ว่าต้องการลบ Policy นี้? การกระทำนี้ไม่สามารถย้อนกลับได้
-                </p>
-              </div>
-
-              <div className="mt-4 flex justify-end gap-3">
-                <Button variant="outline" onClick={() => setConfirmDeleteId(null)}>
-                  ยกเลิก
-                </Button>
-                <Button className="bg-red-600 hover:bg-red-700 text-white" onClick={handleConfirmDelete}>
-                  ลบ
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
