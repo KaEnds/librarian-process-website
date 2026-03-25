@@ -113,7 +113,7 @@ export default function Register() {
               className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             >
-              <option value="admin">admin</option>
+              {/* <option value="admin">admin</option> */}
               <option value="librarian">librarian</option>
               <option value="director">director</option>
             </select>

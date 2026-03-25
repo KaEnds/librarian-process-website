@@ -311,6 +311,10 @@ export default function QuoteComparisonPage() {
             aiSelectionDetail: {
               ...item.aiSelectionDetail,
               selectedVendor: vendor,
+              comparisonRows: item.aiSelectionDetail.comparisonRows.map((row) => ({
+                ...row,
+                reviewStatus: row.vendor === vendor ? "APPROVE_REVIEW" : "PENDING_REVIEW",
+              })),
             },
           }
         })
