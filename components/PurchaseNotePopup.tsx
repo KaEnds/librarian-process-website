@@ -93,8 +93,9 @@ export function PurchaseNotePopup({
             <label className="mb-2 block text-sm font-semibold">หมายเหตุ</label>
             <textarea
               rows={6}
-              autoFocus
-              className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+              autoFocus={!isDirector}
+              disabled={isDirector}
+              className={`w-full resize-none rounded-md border border-input px-3 py-2 text-sm text-foreground outline-none ${isDirector ? "bg-muted text-muted-foreground cursor-not-allowed" : "bg-background focus:border-blue-500 focus:ring-2 focus:ring-blue-500"}`}
               placeholder="เขียนหมายเหตุการจัดซื้อ (ถ้ามี)"
               value={draftNote}
               onChange={(event) => {

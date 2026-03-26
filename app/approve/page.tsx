@@ -6,6 +6,7 @@ import { getColumns } from "./columns"
 import { DataTable } from "./data-table"
 import { Button } from "@/components/ui/button"
 import { Filter, Download, Send, RotateCcw, PenLine } from "lucide-react"
+import * as XLSX from "xlsx"
 import { useToast } from "@/components/Toast"
 import { useVendorQuotes } from "./hooks/useVendorQuotes"
 import { updateMultipleProcessStates } from "@/utils/api"
@@ -202,8 +203,43 @@ export default function ApprovePage() {
       return
     }
 
-    // TODO: Implement export functionality
-    showToast('กำลังพัฒนาฟังก์ชันนี้', 'info')
+    if (filteredData.length === 0) {
+      showToast('ไม่พบรายการสำหรับ Export', 'info')
+      return
+    }
+
+    const exportData = filteredData.map((item, index) => ({
+      "ลำดับ": index + 1,
+      "Quote ID": item.quote_id ?? "-",
+      "Evaluation ID": item.evaluation_id ?? "-",
+      "ชื่อหนังสือ": item.title ?? "-",
+      "จำนวน": item.quantity ?? "-",
+      "หน่วย": item.unit ?? "-",
+      "ราคาต่อหน่วย": item.unit_price ?? "-",
+      "ราคาสุทธิ": item.net_price || item.total_price || "-",
+      "ร้านค้า": item.vendor_name ?? "-",
+      "สถานะรีวิว": item.review_status ?? "-",
+    }))
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, "approve")
+
+    worksheet["!cols"] = [
+      { wch: 8 },
+      { wch: 10 },
+      { wch: 12 },
+      { wch: 40 },
+      { wch: 10 },
+      { wch: 10 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 28 },
+      { wch: 18 },
+    ]
+
+    const filename = `อนุมัติใบเสนอราคา_${currentBatchDateText ?? "latest"}.xlsx`
+    XLSX.writeFile(workbook, filename)
   }
 
   const handleViewApprovalDocument = () => {

@@ -226,7 +226,7 @@ export default function QuoteComparisonPage() {
                   quantity: item.quantity ? String(item.quantity) : "-",
                   delivery: item.estimated_delivery_day || "N/A",
                   aiDecision: item.is_best_option ? "the-best" : "optional",
-                  aiReason: item.decision_reason?.trim() || "-",
+                  aiReason: item.is_best_option ? "คัดเลือกโดย AI" : "ตัวเลือกอื่น",
                   reviewStatus: item.review_status,
                 })),
               },
@@ -311,6 +311,10 @@ export default function QuoteComparisonPage() {
             aiSelectionDetail: {
               ...item.aiSelectionDetail,
               selectedVendor: vendor,
+              comparisonRows: item.aiSelectionDetail.comparisonRows.map((row) => ({
+                ...row,
+                reviewStatus: row.vendor === vendor ? "APPROVE_REVIEW" : "PENDING_REVIEW",
+              })),
             },
           }
         })
