@@ -200,12 +200,15 @@ export default function QuoteComparisonPage() {
               : null
             const librarianSelection = approvedVendorDisplayName || "ยังไม่ได้เลือก"
 
+            const decisionReason = firstItem.decision_reason
+            const isAIComplete = decisionReason != null && String(decisionReason).trim() !== ""
+
             return {
               id: generatedId,
               title: firstItem.title || "N/A",
               author: firstItem.authors || "N/A",
               vendors,
-              aiStatus: "processing" as const,
+              aiStatus: (isAIComplete ? "complete" : "processing") as QuoteComparison["aiStatus"],
               librarianSelection,
               batch_start_date: firstItem.batch_start_date || null,
               batch_end_date: firstItem.batch_end_date || null,
