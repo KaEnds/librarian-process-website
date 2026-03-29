@@ -11,10 +11,12 @@ import { useToast } from "@/components/Toast"
 import { useVendorQuotes } from "./hooks/useVendorQuotes"
 import { updateMultipleProcessStates } from "@/utils/api"
 import { PurchaseNotePopup } from "@/components/PurchaseNotePopup"
+import { useSidebar } from "@/lib/sidebar-context"
 
 export default function ApprovePage() {
   const router = useRouter()
   const { showToast } = useToast()
+  const { isCollapsed } = useSidebar()
   const NOTE_STORAGE_KEY = "approve-purchase-note"
 
   // State management
@@ -432,7 +434,7 @@ export default function ApprovePage() {
       </div>
 
       {/* Title, Stats and Action Buttons */}
-      <div className="border border-gray-200 bg-white rounded-lg p-4 flex items-center justify-between mb-6">
+      <div className="border border-gray-200 bg-white rounded-lg p-4 flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
           <div className="flex items-baseline gap-2 mb-1">
             <h1 className="text-xl font-bold">อนุมัติใบเสนอราคา</h1>
@@ -448,7 +450,7 @@ export default function ApprovePage() {
           <p className="text-sm text-gray-600">ประจำวันที่ {currentBatchDateText ?? "-"}</p>
         </div>
         
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-2">
           <div className="relative" ref={filterRef}>
             <Button 
               variant="outline" 
@@ -576,7 +578,7 @@ export default function ApprovePage() {
       />
 
       {/* Bottom Bar */}
-      <div className="fixed bottom-0 left-[calc(16rem+2rem)] right-8 bg-white border-t border-gray-200 shadow-lg rounded-t-lg">
+      <div className={`fixed bottom-0 ${isCollapsed ? 'left-16' : 'left-64'} right-0 bg-white border-t border-gray-200 shadow-lg rounded-t-lg transition-all duration-300`}>
         <div className="flex items-center justify-between px-8 py-4">
           <div className="flex flex-col">
               <span className="text-xs text-gray-500 font-medium uppercase">จำนวนทั้งสิ้น</span>
