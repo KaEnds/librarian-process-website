@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 export const useProcessStatus = (processId: number) => {
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [isProcessStatusLoading, setIsProcessStatusLoading] = useState(true)
+  const [processStatus, setProcessStatus] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchProcessStatus = async () => {
@@ -13,6 +14,7 @@ export const useProcessStatus = (processId: number) => {
           const data = await response.json()
           const status = data.status
           
+          setProcessStatus(status)
           setIsSubmitted(status === 'DONE')
         }
       } catch (error) {
@@ -25,5 +27,5 @@ export const useProcessStatus = (processId: number) => {
     fetchProcessStatus()
   }, [processId])
 
-  return { isSubmitted, setIsSubmitted, isProcessStatusLoading }
+  return { isSubmitted, setIsSubmitted, isProcessStatusLoading, processStatus, setProcessStatus }
 }

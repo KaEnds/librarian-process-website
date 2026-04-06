@@ -6,6 +6,7 @@ import { getColumns } from "./columns"
 import { DataTable } from "./data-table"
 import { Button } from "@/components/ui/button"
 import { RequestDetailsPopup } from "@/components/RequestDetailsPopup"
+import type { Request } from "./columns"
 import { AIDecisionDetailPopup } from "@/components/AIDecisionDetailPopup"
 import { ConfirmRequestPopup } from "@/components/ConfirmRequestPopup"
 import { Filter, Download, Plus, Send, X } from "lucide-react"
@@ -14,6 +15,7 @@ import { markRequestSeen } from "@/lib/request-notifications"
 import { useBookRequests } from "./hooks/useBookRequests"
 import { useProcessStatus } from "./hooks/useProcessStatus"
 import { useRequestActions } from "./hooks/useRequestActions"
+import { updateBookRequestDetails } from "@/utils/api"
 import { exportRequestsToExcel } from "@/utils/export"
 import { applyFilters, getActiveFilterCount, type FilterState } from "@/utils/filters"
 
@@ -24,8 +26,8 @@ export default function RequestsPage() {
   // State management
   const [currentBatchDateText, setCurrentBatchDateText] = useState<string | null>(null)
   const [isSelectionMode, setIsSelectionMode] = useState(false)
-  const [selectedRequest, setSelectedRequest] = useState<any>(null)
-  const [selectedAIRequest, setSelectedAIRequest] = useState<any>(null)
+  const [selectedRequest, setSelectedRequest] = useState<Request | null>(null)
+  const [selectedAIRequest, setSelectedAIRequest] = useState<Request | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [filters, setFilters] = useState<FilterState>({
@@ -42,9 +44,10 @@ export default function RequestsPage() {
     onBatchDateText: setCurrentBatchDateText
   })
 
-  const { isSubmitted, setIsSubmitted, isProcessStatusLoading } = useProcessStatus(1)
+  const { isSubmitted, setIsSubmitted, isProcessStatusLoading, processStatus } = useProcessStatus(1)
 
   const isActionLocked = isSubmitted || isProcessStatusLoading
+  const canEditRequestDetails = processStatus === "IN_PROGRESS"
 
   const {
     isNextStepPopupOpen,
@@ -118,6 +121,75 @@ export default function RequestsPage() {
     const success = await handleSaveSelection(selectedIds)
     if (success) {
       setIsSelectionMode(false)
+    }
+  }
+
+  const handleSaveRequestDetails = async (payload: {
+    title: string | null
+    author: string | null
+    isbn: string | null
+    year: string | null
+    publisher: string | null
+  }) => {
+    if (!selectedRequest?.request_id) {
+      showToast('ไม่พบ request_id สำหรับการแก้ไขข้อมูล', 'error', 3000)
+      return
+    }
+
+    try {
+      await updateBookRequestDetails(selectedRequest.request_id, payload)
+
+      setData((previous) => previous.map((item) => {
+        if (item.id !== selectedRequest.id) {
+          return item
+        }
+
+        return {
+          ...item,
+          title: payload.title,
+          author: payload.author,
+          isbn: payload.isbn,
+          publisher: payload.publisher,
+          year: payload.year,
+          details: {
+            ...item.details,
+            title: payload.title,
+            author: payload.author,
+            isbn: payload.isbn,
+            publisher: payload.publisher,
+            year: payload.year,
+          },
+        }
+      }))
+
+      setSelectedRequest((previous) => {
+        if (!previous) {
+          return previous
+        }
+
+        return {
+          ...previous,
+          title: payload.title,
+          author: payload.author,
+          isbn: payload.isbn,
+          publisher: payload.publisher,
+          year: payload.year,
+          details: {
+            ...previous.details,
+            title: payload.title,
+            author: payload.author,
+            isbn: payload.isbn,
+            publisher: payload.publisher,
+            year: payload.year,
+          },
+        }
+      })
+
+      showToast('บันทึกรายละเอียดคำร้องขอสำเร็จ', 'success', 3000)
+    } catch (error) {
+      console.error('Error updating request details:', error)
+      showToast('เกิดข้อผิดพลาดในการบันทึกรายละเอียดคำร้องขอ', 'error', 3000)
+      throw error
     }
   }
 
@@ -347,6 +419,8 @@ export default function RequestsPage() {
         open={!!selectedRequest}
         data={selectedRequest?.details ?? null}
         onClose={() => setSelectedRequest(null)}
+        canEdit={canEditRequestDetails}
+        onSave={handleSaveRequestDetails}
       />
 
       <AIDecisionDetailPopup

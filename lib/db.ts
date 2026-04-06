@@ -432,6 +432,80 @@ export const updateBookRequestReviewStatus = async (requestId: number, reviewSta
   }
 }
 
+export type UpdateBookRequestDetailsInput = {
+  title?: string | null;
+  authors?: string | null;
+  isbn_issn?: string | null;
+  publication_year?: number | null;
+  publisher?: string | null;
+};
+
+export const updateBookRequestDetails = async (
+  requestId: number,
+  updates: UpdateBookRequestDetailsInput
+): Promise<Record<string, unknown> | null> => {
+  const setClauses: string[] = [];
+  const values: Array<string | number | null> = [];
+
+  if (updates.title !== undefined) {
+    values.push(updates.title);
+    setClauses.push(`title = $${values.length}`);
+  }
+
+  if (updates.authors !== undefined) {
+    values.push(updates.authors);
+    setClauses.push(`authors = $${values.length}`);
+  }
+
+  if (updates.isbn_issn !== undefined) {
+    values.push(updates.isbn_issn);
+    setClauses.push(`isbn_issn = $${values.length}`);
+  }
+
+  if (updates.publication_year !== undefined) {
+    values.push(updates.publication_year);
+    setClauses.push(`publication_year = $${values.length}`);
+  }
+
+  if (updates.publisher !== undefined) {
+    values.push(updates.publisher);
+    setClauses.push(`publisher = $${values.length}`);
+  }
+
+  if (setClauses.length === 0) {
+    throw new Error('No book request fields provided for update');
+  }
+
+  values.push(requestId);
+
+  let client;
+  try {
+    client = await pool.connect();
+
+    const query = `
+      UPDATE librairy.book_requests
+      SET ${setClauses.join(', ')}, updated_at = CURRENT_TIMESTAMP
+      WHERE request_id = $${values.length}
+      RETURNING request_id, title, authors, isbn_issn, publication_year, publisher, updated_at
+    `;
+
+    const result: QueryResult<Record<string, unknown>> = await client.query(query, values);
+
+    if (result.rows.length === 0) {
+      console.warn(`Book request with ID ${requestId} not found`);
+      return null;
+    }
+
+    console.log(`Book request ${requestId} details updated successfully`);
+    return result.rows[0];
+  } catch (error: any) {
+    console.error('Error updating book request details:', error.message);
+    throw error;
+  } finally {
+    client?.release();
+  }
+}
+
 export const updateProcessStatus = async (processId: number, status: string): Promise<boolean> => {
   try {
     const client = await pool.connect();

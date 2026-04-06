@@ -1,6 +1,8 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { X } from "lucide-react"
 
@@ -46,20 +48,87 @@ type RequestDetailsPopupProps = {
   open: boolean
   data: RequestDetails | null
   onClose: () => void
+  canEdit?: boolean
+  onSave?: (payload: Pick<RequestDetails, "title" | "author" | "isbn" | "year" | "publisher">) => Promise<void>
 }
 
-const ReadOnlyField = ({ label, value }: { label: string; value: string | null }) => {
+type EditableFields = Pick<RequestDetails, "title" | "author" | "isbn" | "year" | "publisher">
+
+const buildEditableFields = (data: RequestDetails | null): EditableFields => ({
+  title: data?.title ?? null,
+  author: data?.author ?? null,
+  isbn: data?.isbn ?? null,
+  year: data?.year ?? null,
+  publisher: data?.publisher ?? null,
+})
+
+const Field = ({
+  label,
+  value,
+  editable = false,
+  onChange,
+}: {
+  label: string
+  value: string | null
+  editable?: boolean
+  onChange?: (value: string) => void
+}) => {
   return (
     <div className="space-y-1">
       <p className="text-xs text-muted-foreground">{label}</p>
-      <Input value={value ?? "-"} readOnly className="h-9 border-gray-300 bg-background" />
+      <Input
+        value={editable ? (value ?? "") : (value ?? "-")}
+        readOnly={!editable}
+        onChange={(event) => onChange?.(event.target.value)}
+        className="h-9 border-gray-300 bg-background"
+      />
     </div>
   )
 }
 
-export function RequestDetailsPopup({ open, data, onClose }: RequestDetailsPopupProps) {
+export function RequestDetailsPopup({ open, data, onClose, canEdit = false, onSave }: RequestDetailsPopupProps) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [formValues, setFormValues] = useState<EditableFields>(buildEditableFields(data))
+
+  useEffect(() => {
+    if (open) {
+      setFormValues(buildEditableFields(data))
+      setIsEditing(false)
+      setIsSaving(false)
+    }
+  }, [open, data])
+
   if (!open || !data) {
     return null
+  }
+
+  const handleFieldChange = (field: keyof EditableFields, value: string) => {
+    setFormValues((previous) => ({
+      ...previous,
+      [field]: value,
+    }))
+  }
+
+  const handleCancelEdit = () => {
+    setFormValues(buildEditableFields(data))
+    setIsEditing(false)
+  }
+
+  const handleSave = async () => {
+    if (!onSave) {
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      await onSave(formValues)
+      setIsEditing(false)
+    } catch {
+      return
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return (
@@ -69,9 +138,26 @@ export function RequestDetailsPopup({ open, data, onClose }: RequestDetailsPopup
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border bg-background px-5 py-3">
-          <h2 className="text-base font-semibold">
-            รายละเอียดคำร้องขอจัดซื้อ{data.requestId ? ` #${data.requestId}` : ''}
-          </h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-base font-semibold">
+              รายละเอียดคำร้องขอจัดซื้อ{data.requestId ? ` #${data.requestId}` : ''}
+            </h2>
+            {canEdit && !isEditing && (
+              <Button type="button" variant="outline" size="sm" onClick={() => setIsEditing(true)}>
+                แก้ไข
+              </Button>
+            )}
+            {canEdit && isEditing && (
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={handleCancelEdit} disabled={isSaving}>
+                  ยกเลิก
+                </Button>
+                <Button type="button" size="sm" onClick={handleSave} disabled={isSaving}>
+                  {isSaving ? "กำลังบันทึก..." : "บันทึก"}
+                </Button>
+              </div>
+            )}
+          </div>
           <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
             <X className="h-5 w-5" />
           </button>
@@ -81,18 +167,43 @@ export function RequestDetailsPopup({ open, data, onClose }: RequestDetailsPopup
           <div className="space-y-4 p-4">
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <ReadOnlyField label="Title" value={data.title} />
-                <ReadOnlyField label="Author" value={data.author} />
+                <Field
+                  label="Title"
+                  value={isEditing ? formValues.title : data.title}
+                  editable={isEditing}
+                  onChange={(value) => handleFieldChange("title", value)}
+                />
+                <Field
+                  label="Author"
+                  value={isEditing ? formValues.author : data.author}
+                  editable={isEditing}
+                  onChange={(value) => handleFieldChange("author", value)}
+                />
               </div>
 
               <div className="grid grid-cols-3 gap-4">
-                <ReadOnlyField label="ISBN/ISSN" value={data.isbn} />
-                <ReadOnlyField label="Year of Publication" value={data.year} />
-                <ReadOnlyField label="Publisher" value={data.publisher} />
+                <Field
+                  label="ISBN/ISSN"
+                  value={isEditing ? formValues.isbn : data.isbn}
+                  editable={isEditing}
+                  onChange={(value) => handleFieldChange("isbn", value)}
+                />
+                <Field
+                  label="Year of Publication"
+                  value={isEditing ? formValues.year : data.year}
+                  editable={isEditing}
+                  onChange={(value) => handleFieldChange("year", value)}
+                />
+                <Field
+                  label="Publisher"
+                  value={isEditing ? formValues.publisher : data.publisher}
+                  editable={isEditing}
+                  onChange={(value) => handleFieldChange("publisher", value)}
+                />
               </div>
 
               <div className="grid grid-cols-3 gap-4">
-                <ReadOnlyField label="For Branch" value={data.branch} />
+                <Field label="For Branch" value={data.branch} />
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">การตีความ AI</p>
                   <div className="flex h-9 items-center rounded-md border border-input bg-background px-3">
@@ -101,7 +212,7 @@ export function RequestDetailsPopup({ open, data, onClose }: RequestDetailsPopup
                     </Badge>
                   </div>
                 </div>
-                <ReadOnlyField label="วันที่ร้องขอ" value={formatDate(data.requestedAt)} />
+                <Field label="วันที่ร้องขอ" value={formatDate(data.requestedAt)} />
               </div>
             </div>
 
@@ -112,12 +223,12 @@ export function RequestDetailsPopup({ open, data, onClose }: RequestDetailsPopup
                 </div>
                 <div className="space-y-4 p-4">
                   <div className="grid grid-cols-2 gap-4">
-                    <ReadOnlyField label="ชื่อ-นามสกุล" value={data.requester.name} />
-                    <ReadOnlyField label="เลขรหัสประจำตัว" value={data.requester.studentId} />
-                    <ReadOnlyField label="สถานะ" value={data.requester.status} />
-                    <ReadOnlyField label="คณะ" value={data.requester.faculty} />
+                    <Field label="ชื่อ-นามสกุล" value={data.requester.name} />
+                    <Field label="เลขรหัสประจำตัว" value={data.requester.studentId} />
+                    <Field label="สถานะ" value={data.requester.status} />
+                    <Field label="คณะ" value={data.requester.faculty} />
                     <div className="col-span-1">
-                      <ReadOnlyField label="สาขาวิชา" value={data.requester.major} />
+                      <Field label="สาขาวิชา" value={data.requester.major} />
                     </div>
                   </div>
                 </div>
@@ -128,7 +239,7 @@ export function RequestDetailsPopup({ open, data, onClose }: RequestDetailsPopup
                   <h3 className="text-sm font-semibold">เหตุผลการร้องขอจัดซื้อ</h3>
                 </div>
                 <div className="space-y-4 p-4">
-                  <ReadOnlyField label="Request reason" value={data.requestReason} />
+                  <Field label="Request reason" value={data.requestReason} />
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground">Specify reason</p>
                     <textarea

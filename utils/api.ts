@@ -62,3 +62,28 @@ export const updateVendorQuoteNetPrice = async (
   return response.json()
 }
 
+export const updateBookRequestDetails = async (
+  requestId: number,
+  payload: {
+    title: string | null
+    author: string | null
+    isbn: string | null
+    year: string | null
+    publisher: string | null
+  }
+) => {
+  const response = await fetch(`/api/edit-book-requests/${requestId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+
+  const responseData = await response.json()
+
+  if (!response.ok) {
+    throw new Error(responseData.message || `Failed to update request ${requestId}`)
+  }
+
+  return responseData
+}
+
