@@ -618,6 +618,116 @@ export const getAllVendorQuotesByBatches = async (): Promise<any[]> => {
   }
 }
 
+export type CreateVendorQuoteInput = {
+  title: string;
+  authors: string;
+  isbn_issn?: string | null;
+  book_format?: string | null;
+  unit_price: number;
+  quantity: number;
+  discount_type?: string | null;
+  net_price: number;
+  currency?: string | null;
+  platform?: string | null;
+  availability?: string | null;
+  estimated_delivery_day?: number | null;
+  vendor_name: string;
+  contact_person?: string | null;
+  vendor_email?: string | null;
+  telephone_number?: string | null;
+};
+
+export const insertVendorQuote = async (input: CreateVendorQuoteInput): Promise<Record<string, unknown>> => {
+  let client;
+  try {
+    client = await pool.connect();
+
+    const evaluationQuery = `
+      SELECT pe.evaluation_id
+      FROM librairy.policy_evaluations pe
+      JOIN librairy.book_requests br ON pe.request_id = br.request_id
+      WHERE (
+        $1::text IS NOT NULL
+        AND $1::text <> ''
+        AND br.isbn_issn = $1
+      )
+      OR TRIM(LOWER(br.title)) LIKE TRIM(LOWER($2))
+      ORDER BY
+        (CASE WHEN $1::text IS NOT NULL AND $1::text <> '' AND br.isbn_issn = $1 THEN 0 ELSE 1 END) ASC,
+        pe.evaluated_at DESC
+      LIMIT 1
+    `;
+
+    const evaluationResult: QueryResult<{ evaluation_id: number }> = await client.query(evaluationQuery, [
+      input.isbn_issn ?? null,
+      `%${input.title}%`,
+    ]);
+    const evaluationId = evaluationResult.rows[0]?.evaluation_id ?? null;
+
+    if (!evaluationId) {
+      const notFoundError = new Error('No matching evaluation_id found for this book request') as Error & { code?: string };
+      notFoundError.code = 'EVALUATION_NOT_FOUND';
+      throw notFoundError;
+    }
+
+    const query = `
+      INSERT INTO librairy.vendor_quotes (
+        evaluation_id,
+        title,
+        authors,
+        isbn_issn,
+        book_format,
+        unit_price,
+        quantity,
+        discount_type,
+        net_price,
+        currency,
+        platform,
+        availability,
+        estimated_delivery_day,
+        vendor_name,
+        contact_person,
+        vendor_email,
+        telephone_number,
+        extract_process_status
+      )
+      VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+      )
+      RETURNING *
+    `;
+
+    const values = [
+      evaluationId,
+      input.title,
+      input.authors,
+      input.isbn_issn ?? null,
+      input.book_format ?? null,
+      input.unit_price,
+      input.quantity,
+      input.discount_type ?? null,
+      input.net_price,
+      input.currency ?? null,
+      input.platform ?? null,
+      input.availability ?? null,
+      input.estimated_delivery_day ?? null,
+      input.vendor_name,
+      input.contact_person ?? null,
+      input.vendor_email ?? null,
+      input.telephone_number ?? null,
+      'Wait_for_review',
+    ];
+
+    const result: QueryResult<Record<string, unknown>> = await client.query(query, values);
+    return result.rows[0];
+  } catch (error: any) {
+    console.error('Error inserting vendor quote:', error.message);
+    throw error;
+  } finally {
+    client?.release();
+  }
+}
+
 export const getAllVendorQuotes = async (): Promise<any[]> => {
   try {
     const client = await pool.connect();

@@ -6,9 +6,10 @@ import { getColumns, QuoteComparison } from "./columns"
 import { DataTable } from "./data-table"
 import { Button } from "@/components/ui/button"
 import { AISelectionPopup } from "@/components/AISelectionPopup"
+import { ManualQuoteEntryPayload, ManualQuoteEntryPopup } from "@/components/ManualQuoteEntryPopup"
 import { useToast } from "@/components/Toast"
 import { updateMultipleProcessStates, updateVendorQuoteNetPrice } from "@/utils/api"
-import { Filter, Upload, Send, Pencil, Check, X, Play } from "lucide-react"
+import { Filter, Upload, Send, Pencil, Check, X, Play, Plus } from "lucide-react"
 
 const DRIVE_UPLOAD_FOLDER_URL = "https://drive.google.com/drive/folders/1tdvwEOaeasFDPg8PI2NY3rU5mVywoKsa"
 
@@ -42,25 +43,30 @@ const getDisplayVendorName = (vendorNames: string[], normalizedName: string): st
   return matching || normalizedName
 }
 
+type QuoteComparisonRow = QuoteComparison
+
 export default function QuoteComparisonPage() {
   const router = useRouter()
-  const [data, setData] = useState<QuoteComparison[]>([])
+  const [apiData, setApiData] = useState<QuoteComparisonRow[]>([])
   const [isFetchingData, setIsFetchingData] = useState(true)
   const [isExtracting, setIsExtracting] = useState(false)
   const [isTriggeringVendorSelection, setIsTriggeringVendorSelection] = useState(false)
   const [processStatus, setProcessStatus] = useState<string | null>(null)
-  const [draftData, setDraftData] = useState<QuoteComparison[] | null>(null)
+  const [draftData, setDraftData] = useState<QuoteComparisonRow[] | null>(null)
   const [editableVendorMap, setEditableVendorMap] = useState<Record<string, boolean>>({})
   const [isEditMode, setIsEditMode] = useState(false)
-  const [selectedAIQuote, setSelectedAIQuote] = useState<QuoteComparison | null>(null)
+  const [selectedAIQuote, setSelectedAIQuote] = useState<QuoteComparisonRow | null>(null)
   const [vendorNames, setVendorNames] = useState<string[]>([])
   const [isFilterOpen, setIsFilterOpen] = useState(false)
+  const [isManualEntryOpen, setIsManualEntryOpen] = useState(false)
   const [filters, setFilters] = useState({
     vendorStatus: [] as string[],
     selectionStatus: [] as string[],
   })
   const filterRef = useRef<HTMLDivElement>(null)
   const { showToast } = useToast()
+
+  const data = useMemo<QuoteComparisonRow[]>(() => apiData, [apiData])
 
   const getEditableKey = (itemId: number, vendorName: string) => `${itemId}::${vendorName}`
 
@@ -114,50 +120,49 @@ export default function QuoteComparisonPage() {
     [handleOpenAISelection, vendorNames, isEditMode, handleVendorPriceChange, editableVendorMap, processStatus],
   )
 
-  useEffect(() => {
-    const fetchVendorQuotes = async () => {
-      setIsFetchingData(true)
+  const fetchVendorQuotes = useCallback(async () => {
+    setIsFetchingData(true)
 
-      try {
-        const processResponse = await fetch('/api/get-process-state?processId=3')
-        if (processResponse.ok) {
-          const processPayload = await processResponse.json()
-          setProcessStatus(processPayload?.status ?? null)
+    try {
+      const processResponse = await fetch('/api/get-process-state?processId=3')
+      if (processResponse.ok) {
+        const processPayload = await processResponse.json()
+        setProcessStatus(processPayload?.status ?? null)
+      }
+
+      const response = await fetch('/api/get-all-vendor-quotes-by-batches')
+      const result = await response.json()
+      console.log('Vendor Quotes:', result.data)
+      
+      // Extract unique vendor names (normalized to merge similar ones)
+      const allVendorNames = result.data.map((item: any) => item.vendor_name).filter(Boolean)
+      const normalizedToOriginal = new Map<string, string>()
+      
+      allVendorNames.forEach((name: string) => {
+        const normalized = normalizeVendorName(name)
+        if (!normalizedToOriginal.has(normalized)) {
+          normalizedToOriginal.set(normalized, name)
         }
+      })
+      
+      const uniqueVendors = Array.from(normalizedToOriginal.values())
+      console.log('Unique Vendor Names:', uniqueVendors)
+      setVendorNames(uniqueVendors)
 
-        const response = await fetch('/api/get-all-vendor-quotes-by-batches')
-        const result = await response.json()
-        console.log('Vendor Quotes:', result.data)
-        
-        // Extract unique vendor names (normalized to merge similar ones)
-        const allVendorNames = result.data.map((item: any) => item.vendor_name).filter(Boolean)
-        const normalizedToOriginal = new Map<string, string>()
-        
-        allVendorNames.forEach((name: string) => {
-          const normalized = normalizeVendorName(name)
-          if (!normalizedToOriginal.has(normalized)) {
-            normalizedToOriginal.set(normalized, name)
-          }
-        })
-        
-        const uniqueVendors = Array.from(normalizedToOriginal.values())
-        console.log('Unique Vendor Names:', uniqueVendors)
-        setVendorNames(uniqueVendors)
+      // Group data by title to handle cases where evaluation_id is null
+      const groupedByTitle = result.data.reduce((acc: any, item: any) => {
+        const title = item.title || "N/A"
+        if (!acc[title]) {
+          acc[title] = []
+        }
+        acc[title].push(item)
+        return acc
+      }, {})
 
-        // Group data by title to handle cases where evaluation_id is null
-        const groupedByTitle = result.data.reduce((acc: any, item: any) => {
-          const title = item.title || "N/A"
-          if (!acc[title]) {
-            acc[title] = []
-          }
-          acc[title].push(item)
-          return acc
-        }, {})
-
-        // Transform to QuoteComparison format
-        const transformedData: QuoteComparison[] = Object.entries(groupedByTitle).map(
-          ([title, items]: [string, any], index: number) => {
-            const firstItem = items[0]
+      // Transform to QuoteComparison format
+      const transformedData: QuoteComparisonRow[] = Object.entries(groupedByTitle).map(
+        ([title, items]: [string, any], index: number) => {
+          const firstItem = items[0]
             
             // Generate ID: Use evaluation_id if available, otherwise use the first quote_id or generate index-based ID
             const generatedId = firstItem.evaluation_id 
@@ -203,51 +208,52 @@ export default function QuoteComparisonPage() {
             const decisionReason = firstItem.decision_reason
             const isAIComplete = decisionReason != null && String(decisionReason).trim() !== ""
 
-            return {
-              id: generatedId,
+          return {
+            id: generatedId,
+            title: firstItem.title || "N/A",
+            author: firstItem.authors || "N/A",
+            vendors,
+            aiStatus: (isAIComplete ? "complete" : "processing") as QuoteComparison["aiStatus"],
+            librarianSelection,
+            batch_start_date: firstItem.batch_start_date || null,
+            batch_end_date: firstItem.batch_end_date || null,
+            batch_start_date_th: batchStartDateTh,
+            batch_end_date_th: batchEndDateTh,
+            aiSelectionDetail: {
+              quoteId: generatedId,
               title: firstItem.title || "N/A",
-              author: firstItem.authors || "N/A",
-              vendors,
-              aiStatus: (isAIComplete ? "complete" : "processing") as QuoteComparison["aiStatus"],
-              librarianSelection,
-              batch_start_date: firstItem.batch_start_date || null,
-              batch_end_date: firstItem.batch_end_date || null,
-              batch_start_date_th: batchStartDateTh,
-              batch_end_date_th: batchEndDateTh,
-              aiSelectionDetail: {
-                quoteId: generatedId,
-                title: firstItem.title || "N/A",
-                selectedVendor: approvedVendorDisplayName,
-                comparisonRows: uniqueItems.map((item: any, index: number) => ({
-                  id: index + 1,
-                  quoteId: item.quote_id,
-                  quoteIds: item.quoteIds || [item.quote_id],  // All quote IDs for this vendor
-                  vendor: getDisplayVendorName(uniqueVendors, normalizeVendorName(item.vendor_name || "")) || "N/A",
-                  unitPrice: item.unit_price ? `${parseFloat(item.unit_price).toFixed(2)} บาท` : "-",
-                  discountValue: item.discount_value ? `${parseFloat(item.discount_value).toFixed(2)}` : "-",
-                  netPrice: item.net_price ? `${parseFloat(item.net_price).toFixed(2)} บาท` : "-",
-                  quantity: item.quantity ? String(item.quantity) : "-",
-                  delivery: item.estimated_delivery_day || "N/A",
-                  aiDecision: item.is_best_option ? "the-best" : "optional",
-                  aiReason: item.is_best_option ? "คัดเลือกโดย AI" : "ตัวเลือกอื่น",
-                  reviewStatus: item.review_status,
-                })),
-              },
-            }
+              selectedVendor: approvedVendorDisplayName,
+              comparisonRows: uniqueItems.map((item: any, index: number) => ({
+                id: index + 1,
+                quoteId: item.quote_id,
+                quoteIds: item.quoteIds || [item.quote_id],
+                vendor: getDisplayVendorName(uniqueVendors, normalizeVendorName(item.vendor_name || "")) || "N/A",
+                unitPrice: item.unit_price ? `${parseFloat(item.unit_price).toFixed(2)} บาท` : "-",
+                discountValue: item.discount_value ? `${parseFloat(item.discount_value).toFixed(2)}` : "-",
+                netPrice: item.net_price ? `${parseFloat(item.net_price).toFixed(2)} บาท` : "-",
+                quantity: item.quantity ? String(item.quantity) : "-",
+                delivery: item.estimated_delivery_day || "N/A",
+                aiDecision: item.is_best_option ? "the-best" : "optional",
+                aiReason: item.is_best_option ? "คัดเลือกโดย AI" : "ตัวเลือกอื่น",
+                reviewStatus: item.review_status,
+              })),
+            },
           }
-        )
+        }
+      )
 
-        console.log('Transformed Data:', transformedData)
-        setData(transformedData)
-      } catch (error) {
-        console.error('Error fetching vendor quotes:', error)
-      } finally {
-        setIsFetchingData(false)
-      }
+      console.log('Transformed Data:', transformedData)
+      setApiData(transformedData)
+    } catch (error) {
+      console.error('Error fetching vendor quotes:', error)
+    } finally {
+      setIsFetchingData(false)
     }
-
-    fetchVendorQuotes()
   }, [])
+
+  useEffect(() => {
+    fetchVendorQuotes()
+  }, [fetchVendorQuotes])
 
   const handleSaveSelection = async (quoteId: number, vendor: string) => {
     try {
@@ -302,7 +308,7 @@ export default function QuoteComparisonPage() {
       }
 
       // Update local state
-      setData((previous) =>
+      setApiData((previous) =>
         previous.map((item) => {
           if (item.id !== quoteId) {
             return item
@@ -527,16 +533,18 @@ export default function QuoteComparisonPage() {
       })
     })
 
-    try {
-      await Promise.all(
-        changedEntries.map(({ evaluationId, vendorName, netPrice }) =>
-          updateVendorQuoteNetPrice(evaluationId, vendorName, netPrice),
-        ),
-      )
-    } catch (error) {
-      console.error("Error updating vendor quote prices:", error)
-      showToast("เกิดข้อผิดพลาดในการบันทึกราคา กรุณาลองใหม่อีกครั้ง", "error")
-      return
+    if (changedEntries.length > 0) {
+      try {
+        await Promise.all(
+          changedEntries.map(({ evaluationId, vendorName, netPrice }) =>
+            updateVendorQuoteNetPrice(evaluationId, vendorName, netPrice),
+          ),
+        )
+      } catch (error) {
+        console.error("Error updating vendor quote prices:", error)
+        showToast("เกิดข้อผิดพลาดในการบันทึกราคา กรุณาลองใหม่อีกครั้ง", "error")
+        return
+      }
     }
 
     const normalizedData = draftData.map((item) => {
@@ -572,11 +580,31 @@ export default function QuoteComparisonPage() {
       }
     })
 
-    setData(normalizedData)
+    setApiData(normalizedData)
     setDraftData(null)
     setEditableVendorMap({})
     setIsEditMode(false)
     showToast("ยืนยันการแก้ไขราคาเรียบร้อย", "success")
+  }
+
+  const handleAddManualEntry = async (payload: ManualQuoteEntryPayload) => {
+    const response = await fetch('/api/create-vendor-quote', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    })
+
+    const responseData = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      const errorMessage = responseData?.message || 'ไม่สามารถเพิ่มข้อมูลใบเสนอราคาได้'
+      showToast(errorMessage, 'error')
+      throw new Error(errorMessage)
+    }
+
+    await fetchVendorQuotes()
+    showToast("เพิ่มข้อมูลหนังสือเองสำเร็จ", "success")
   }
 
   // Close filter dropdown on outside click
@@ -632,9 +660,9 @@ export default function QuoteComparisonPage() {
   const isPageActionDisabled = isFetchingData || processStatus === "DONE" || processStatus === "PENDING"
 
   // Get batch date range from first item
-  const batchDateRange = data.length > 0 
+  const batchDateRange = apiData.length > 0 
     ? (() => {
-        const firstItem = data[0]
+        const firstItem = apiData[0]
         if (firstItem.batch_start_date_th && firstItem.batch_end_date_th) {
           return `${firstItem.batch_start_date_th} - ${firstItem.batch_end_date_th}`
         }
@@ -742,6 +770,15 @@ export default function QuoteComparisonPage() {
             )}
           </div>
 
+          <Button
+            className="bg-blue-600 hover:bg-blue-700 text-white disabled:bg-gray-400 disabled:hover:bg-gray-200"
+            onClick={() => setIsManualEntryOpen(true)}
+            disabled={isPageActionDisabled}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            เพิ่มข้อมูลหนังสือเอง
+          </Button>
+
           {!isEditMode ? (
             <Button variant="outline" className="bg-white" onClick={handleStartEdit} disabled={isPageActionDisabled}>
               <Pencil className="w-4 h-4 mr-2" />
@@ -802,6 +839,12 @@ export default function QuoteComparisonPage() {
         onClose={() => setSelectedAIQuote(null)}
         onSave={handleSaveSelection}
         isReadOnly={isPageActionDisabled}
+      />
+
+      <ManualQuoteEntryPopup
+        open={isManualEntryOpen}
+        onClose={() => setIsManualEntryOpen(false)}
+        onSubmit={handleAddManualEntry}
       />
     </div>
   )
