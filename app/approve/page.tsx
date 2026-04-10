@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { getColumns } from "./columns"
 import { DataTable } from "./data-table"
 import { Button } from "@/components/ui/button"
-import { Filter, Download, Send, RotateCcw, PenLine } from "lucide-react"
+import { Filter, Download, RotateCcw, PenLine } from "lucide-react"
 import * as XLSX from "xlsx"
 import { useToast } from "@/components/Toast"
 import { useVendorQuotes } from "./hooks/useVendorQuotes"
@@ -33,7 +33,7 @@ export default function ApprovePage() {
   })
   const filterRef = useRef<HTMLDivElement>(null)
 
-  // Custom hooks
+  // Custom hooks สำหรับดึงข้อมูลจาก Database จริง
   const { data, setData, isLoading } = useVendorQuotes({
     onBatchDateText: setCurrentBatchDateText,
     onError: (error) => {
@@ -42,7 +42,6 @@ export default function ApprovePage() {
   })
 
   // Event handlers
-
   const handleToggleFilter = (category: 'vendorStatus' | 'approvalStatus', value: string) => {
     setFilters(prev => {
       const currentFilters = prev[category]
@@ -59,8 +58,6 @@ export default function ApprovePage() {
 
   const isProcess4Pending = process4Status === "PENDING"
   const isActionDisabled = isProcessStatusLoading || isProcess4Pending
-
-
 
   // Close filter dropdown on outside click
   useEffect(() => {
@@ -86,6 +83,7 @@ export default function ApprovePage() {
     }
   }, [])
 
+  // ดึง Role ของ User จาก Database
   useEffect(() => {
     const fetchCurrentUserRole = async () => {
       try {
@@ -104,6 +102,7 @@ export default function ApprovePage() {
     fetchCurrentUserRole()
   }, [])
 
+  // ดึงสถานะ Process ล่าสุด
   useEffect(() => {
     const fetchProcessStatus = async () => {
       setIsProcessStatusLoading(true)
@@ -137,14 +136,12 @@ export default function ApprovePage() {
   const filteredData = useMemo(() => {
     let result = [...data]
 
-    // Apply vendor filter
     if (filters.vendorStatus.length > 0) {
       result = result.filter(item => 
         filters.vendorStatus.includes(item.vendor_name)
       )
     }
 
-    // Apply approval status filter
     if (filters.approvalStatus.length > 0) {
       result = result.filter(item => {
         if (filters.approvalStatus.includes("approved")) {
@@ -201,9 +198,7 @@ export default function ApprovePage() {
   const visibleTotalCount = isProcess4Pending ? 0 : data.length
 
   const handleExport = () => {
-    if (isActionDisabled) {
-      return
-    }
+    if (isActionDisabled) return
 
     if (filteredData.length === 0) {
       showToast('ไม่พบรายการสำหรับ Export', 'info')
@@ -228,16 +223,8 @@ export default function ApprovePage() {
     XLSX.utils.book_append_sheet(workbook, worksheet, "approve")
 
     worksheet["!cols"] = [
-      { wch: 8 },
-      { wch: 10 },
-      { wch: 12 },
-      { wch: 40 },
-      { wch: 10 },
-      { wch: 10 },
-      { wch: 15 },
-      { wch: 15 },
-      { wch: 28 },
-      { wch: 18 },
+      { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 40 }, { wch: 10 },
+      { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 28 }, { wch: 18 },
     ]
 
     const filename = `อนุมัติใบเสนอราคา_${currentBatchDateText ?? "latest"}.xlsx`
@@ -245,9 +232,7 @@ export default function ApprovePage() {
   }
 
   const handleViewApprovalDocument = () => {
-    if (isActionDisabled) {
-      return
-    }
+    if (isActionDisabled) return
 
     if (filteredData.length === 0) {
       showToast('ไม่พบรายการสำหรับสร้างเอกสาร', 'info')
@@ -265,20 +250,14 @@ export default function ApprovePage() {
   }
 
   const handleSelectAgain = async () => {
-    if (isActionDisabled) {
-      return
-    }
+    if (isActionDisabled) return
 
     const isConfirmed = window.confirm("ยืนยันการเปลี่ยนสถานะเพื่อกลับไปเลือกใบเสนอราคาอีกครั้งใช่หรือไม่?")
-    if (!isConfirmed) {
-      return
-    }
+    if (!isConfirmed) return
 
     try {
       const quoteResponse = await fetch('/api/get-all-vendor-quotes-by-batches')
-      if (!quoteResponse.ok) {
-        throw new Error('ไม่สามารถดึงรายการใบเสนอราคาล่าสุดได้')
-      }
+      if (!quoteResponse.ok) throw new Error('ไม่สามารถดึงรายการใบเสนอราคาล่าสุดได้')
 
       const quotePayload = await quoteResponse.json()
       const rejectedQuoteIds = Array.from(new Set(
@@ -291,9 +270,7 @@ export default function ApprovePage() {
       if (rejectedQuoteIds.length > 0) {
         const restoreResponse = await fetch('/api/update-quote-comparison-review-status', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             quoteIds: rejectedQuoteIds,
             reviewStatus: 'PENDING_REVIEW',
@@ -318,9 +295,7 @@ export default function ApprovePage() {
   }
 
   const openPurchaseNotePopup = () => {
-    if (isActionDisabled) {
-      return
-    }
+    if (isActionDisabled) return
 
     if (filteredData.length === 0) {
       showToast("ไม่พบรายการสำหรับเขียนหมายเหตุ", "info")  
@@ -329,6 +304,8 @@ export default function ApprovePage() {
 
     setIsNotePopupOpen(true)
   }
+
+  // --- การทำงานกับ Database จริง ---
 
   const handleSavePurchaseNote = () => {
     const savePurchaseRemark = async () => {
@@ -339,9 +316,7 @@ export default function ApprovePage() {
           body: JSON.stringify({ remark: purchaseNote }),
         })
 
-        if (!response.ok) {
-          throw new Error('Failed to save purchase remark')
-        }
+        if (!response.ok) throw new Error('Failed to save purchase remark')
 
         sessionStorage.setItem(NOTE_STORAGE_KEY, purchaseNote)
         setIsNotePopupOpen(false)
@@ -355,28 +330,42 @@ export default function ApprovePage() {
     void savePurchaseRemark()
   }
 
-  const handleDirectorApprovePurchase = async () => {
+  // ฟังก์ชันอนุมัติ และจัดการรายการที่ถูกตีตก
+  const handleDirectorApprovePurchase = async (rejectedQuoteIds: number[]) => {
     try {
+      // 1. บันทึกหมายเหตุ
       const remarkResponse = await fetch('/api/update-purchase-remark', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ remark: purchaseNote }),
       })
 
-      if (!remarkResponse.ok) {
-        throw new Error('Failed to save purchase remark')
+      if (!remarkResponse.ok) throw new Error('Failed to save purchase remark')
+
+      // 2. อัปเดตสถานะหนังสือที่ถูกตีตกเป็น REJECT_REVIEW ในตาราง Quote
+      if (rejectedQuoteIds.length > 0) {
+        const rejectItemsResponse = await fetch('/api/update-quote-comparison-review-status', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({ 
+             quoteIds: rejectedQuoteIds, 
+             reviewStatus: 'REJECT_REVIEW' 
+           })
+        })
+
+        if (!rejectItemsResponse.ok) throw new Error('Failed to reject specific items')
       }
 
+      // 3. ยืนยันการอนุมัติ Batch ภาพรวม
       const decisionResponse = await fetch('/api/update-purchase-decision', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ decision: 'APPROVE' }),
       })
 
-      if (!decisionResponse.ok) {
-        throw new Error('Failed to approve purchase')
-      }
+      if (!decisionResponse.ok) throw new Error('Failed to approve purchase')
 
+      // 4. เปลี่ยน Process สู่ขั้นตอนถัดไป (เสร็จสิ้น)
       await updateMultipleProcessStates([
         { processId: 4, status: 'DONE' },
       ])
@@ -384,24 +373,38 @@ export default function ApprovePage() {
       sessionStorage.setItem(NOTE_STORAGE_KEY, purchaseNote)
       setIsNotePopupOpen(false)
       setProcess4Status('DONE')
-      showToast("อนุมัติการจัดซื้อเรียบร้อย", "success")
+      
+      const successMsg = rejectedQuoteIds.length > 0 
+        ? `อนุมัติเรียบร้อย (ยกเลิกบางส่วน ${rejectedQuoteIds.length} รายการ)` 
+        : "อนุมัติการจัดซื้อเรียบร้อย"
+      showToast(successMsg, "success")
+      
+      // Refresh page เพื่อดึงข้อมูลสถานะล่าสุดมาแสดงใหม่
+      window.location.reload()
+
     } catch (error) {
       console.error('Error approving purchase:', error)
       showToast("เกิดข้อผิดพลาดในการอนุมัติการจัดซื้อ", "error")
     }
   }
 
+  // ฟังก์ชันไม่อนุมัติทั้งลอต
   const handleDirectorRejectPurchase = async () => {
     try {
+      // บันทึกหมายเหตุก่อนตีตก (ถ้ามี)
+      await fetch('/api/update-purchase-remark', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ remark: purchaseNote }),
+      })
+
       const decisionResponse = await fetch('/api/update-purchase-decision', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ decision: 'REJECT' }),
       })
 
-      if (!decisionResponse.ok) {
-        throw new Error('Failed to reject purchase')
-      }
+      if (!decisionResponse.ok) throw new Error('Failed to reject purchase')
 
       await updateMultipleProcessStates([
         { processId: 4, status: 'REJECT' },
@@ -410,6 +413,8 @@ export default function ApprovePage() {
       setIsNotePopupOpen(false)
       setProcess4Status('REJECT')
       showToast("ไม่อนุมัติการจัดซื้อ", "info")
+      
+      window.location.reload()
     } catch (error) {
       console.error('Error rejecting purchase:', error)
       showToast("เกิดข้อผิดพลาดในการไม่อนุมัติการจัดซื้อ", "error")
@@ -604,10 +609,11 @@ export default function ApprovePage() {
         </div>
       </div>
 
+      {/* Purchase Note Popup with mapped quote_id */}
       <PurchaseNotePopup
         open={isNotePopupOpen}
         items={tableData.map((item) => ({
-          id: item.id,
+          id: item.quote_id, // แมปให้ id เป็น quote_id เพื่อให้ API รู้จักว่าตีตกเล่มไหน
           title: item.title,
           quantity: item.quantity,
           unit: item.unit,
@@ -623,7 +629,6 @@ export default function ApprovePage() {
         onApprove={handleDirectorApprovePurchase}
         onReject={handleDirectorRejectPurchase}
       />
-
 
     </div>
   )
