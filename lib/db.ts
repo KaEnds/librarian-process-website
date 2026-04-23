@@ -604,7 +604,7 @@ export const getAllVendorQuotesByBatches = async (): Promise<any[]> => {
           ON pe.batch_id = b.batch_id
       LEFT JOIN librairy.purchase_approvals pa 
           ON ad.approval_id = pa.approval_id 
-      WHERE (CURRENT_TIMESTAMP - INTERVAL '7 days') BETWEEN b.batch_start_date AND b.batch_end_date
+      WHERE b.batch_id = 12
       ORDER BY vq.quote_id;
     `;
 
