@@ -72,13 +72,3 @@ docker network create librairy-net
   - ใช้ `ENTRYPOINT` คู่กับ `dumb-init` ก่อนที่จะรัน `npm start`
 
 ---
-
-## 💡 หมายเหตุและการแก้ไขปัญหาเบื้องต้น (Troubleshooting)
-
-**ข้อควรระวังเรื่อง Healthcheck ใน Dockerfile:**
-ใน `Dockerfile` มีคำสั่ง `HEALTHCHECK` ที่ยิงตรวจสอบไปที่ `http://localhost:3000/` แต่แอปพลิเคชันของคุณมีการอัปเดตไปใช้ Port `5000` (อ้างอิงจาก EXPOSE 5000) 
-หากพบว่า Container แจ้งเตือนสถานะเป็น **Unhealthy** ให้ปรับแก้บรรทัด HEALTHCHECK ใน `Dockerfile` จากพอร์ต 3000 เป็น 5000 ดังนี้:
-```dockerfile
-# แก้ไขจาก 3000 เป็น 5000
-HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3   CMD node -e "require('http').get('http://localhost:5000/', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
-```
